@@ -59,3 +59,23 @@ class StoreUserRepository(BaseRepository):
 class ShippingAddressRepository(BaseRepository):
     def __init__(self):
         self._model = ShippingAddress
+
+class UserShippingAddressRepository(BaseRepository):
+    def __init__(self):
+        self._model = UserShippingAddress
+
+class CreditCardRepository(BaseRepository):
+    def __init__(self):
+        self._model = CreditCard
+
+class OrderRepository(BaseRepository):
+    def __init__(self):
+        self._model = OrderInStore
+
+class RecordInOrderRepository(BaseRepository):
+    def __init__(self):
+        self._model = RecordInOrder
+
+class TransactionInOrderRepository(BaseRepository):
+    def __init__(self):
+        self._model = TransactionInOrder
