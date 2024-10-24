@@ -36,3 +36,44 @@ class Context:
         self.Order = OrderContext()
         self.RecordInOrder = RecordInOrderContext()
         self.TransactionInOrder = TransactionInOrderContext()
+
+# Контекст користувача (StoreUser)
+class StoreUserContext(BaseContext):
+    def __init__(self):
+        super().__init__(StoreUserRepository())
+
+
+# Контекст співробітників (Employee)
+class EmployeeContext(BaseContext):
+    def __init__(self):
+        super().__init__(EmployeeRepository())
+
+
+# Контекст ролей співробітників (EmployeeRole)
+class EmployeeRoleContext(BaseContext):
+    def __init__(self):
+        super().__init__(EmployeeRoleRepository())
+
+
+# Контекст постачальників (Supplier)
+class SupplierContext(BaseContext):
+    def __init__(self):
+        super().__init__(SupplierRepository())
+
+
+# Контекст умов записів (ConditionOfRecord)
+class ConditionOfRecordContext(BaseContext):
+    def __init__(self):
+        super().__init__(ConditionOfRecordRepository())
+
+
+# Контекст записів (Record)
+class RecordContext(BaseContext):
+    def __init__(self):
+        super().__init__(RecordRepository())
+
+
+# Контекст адрес доставки (ShippingAddress)
+class ShippingAddressContext(BaseContext):
+    def __init__(self):
+        super().__init__(ShippingAddressRepository())
