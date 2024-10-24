@@ -17,9 +17,11 @@ class BaseContext:
     def add(self, **kwargs):
         return self.repo.create(**kwargs)
 
-    def find_by_id(self, entity_id): 
+    def find_by_id(self, entity_id):  # Renamed parameter
         return self.repo.get_by_id(entity_id)
 
+    def get_all(self):
+        return self.repo.get_all()
 
 class Context:
     def __init__(self):
@@ -36,6 +38,7 @@ class Context:
         self.Order = OrderContext()
         self.RecordInOrder = RecordInOrderContext()
         self.TransactionInOrder = TransactionInOrderContext()
+
 
 # Контекст користувача (StoreUser)
 class StoreUserContext(BaseContext):
@@ -77,6 +80,7 @@ class RecordContext(BaseContext):
 class ShippingAddressContext(BaseContext):
     def __init__(self):
         super().__init__(ShippingAddressRepository())
+
 
 # Контекст зв'язку користувача з адресою доставки (UserShippingAddress)
 class UserShippingAddressContext(BaseContext):
