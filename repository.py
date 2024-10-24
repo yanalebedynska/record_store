@@ -40,8 +40,22 @@ class EmployeeRepository(BaseRepository):
     def __init__(self):
         self._model = Employee  # Призначаємо модель через інкапсуляцію
 
-
-# Інші репозиторії аналогічно
 class SupplierRepository(BaseRepository):
     def __init__(self):
         self._model = Supplier
+
+class ConditionOfRecordRepository(BaseRepository):
+    def __init__(self):
+        self._model = ConditionOfRecord
+
+class RecordRepository(BaseRepository):
+    def __init__(self):
+        self._model = Record
+
+class StoreUserRepository(BaseRepository):
+    def __init__(self):
+        self._model = StoreUser
+
+class ShippingAddressRepository(BaseRepository):
+    def __init__(self):
+        self._model = ShippingAddress
