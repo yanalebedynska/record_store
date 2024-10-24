@@ -100,3 +100,38 @@ class UserShippingAddress(models.Model):
     user_shipping_address_id = models.AutoField(primary_key=True)
     shipping_address = models.ForeignKey(ShippingAddress, on_delete=models.CASCADE, related_name='user_addresses')
     user = models.ForeignKey(StoreUser, on_delete=models.CASCADE, related_name='user_addresses')
+
+# CREDIT CARD
+class CreditCard(models.Model):
+    card_id = models.AutoField(primary_key=True)
+    expiring_date = models.DateField(null=False)
+    arrears = models.DecimalField(max_digits=10, decimal_places=2, null=False)
+    user = models.ForeignKey(StoreUser, on_delete=models.CASCADE, related_name='credit_cards')
+
+
+# ORDER
+class OrderInStore(models.Model):
+    order_id = models.AutoField(primary_key=True)
+    order_date = models.DateField(null=False)
+    total_price = models.DecimalField(max_digits=10, decimal_places=2, null=False)
+    tracking_number = models.IntegerField(null=False)
+    quantity_of_records = models.IntegerField(null=False)
+    user = models.ForeignKey(StoreUser, on_delete=models.CASCADE, related_name='orders')
+    employee = models.ForeignKey(Employee, on_delete=models.CASCADE, related_name='orders')
+    shipping_address = models.ForeignKey(ShippingAddress, on_delete=models.CASCADE, related_name='orders')
+
+
+# RECORD IN ORDER
+class RecordInOrder(models.Model):
+    record_in_table_id = models.AutoField(primary_key=True)
+    record = models.ForeignKey(Record, on_delete=models.CASCADE, related_name='record_orders')
+    order = models.ForeignKey(OrderInStore, on_delete=models.CASCADE, related_name='order_records')
+
+
+# TRANSACTION IN ORDER
+class TransactionInOrder(models.Model):
+    transaction_id = models.AutoField(primary_key=True)
+    payment_date = models.DateField(null=False)
+    payment_code = models.IntegerField(unique=True, null=False)
+    credit_card = models.ForeignKey(CreditCard, on_delete=models.CASCADE, related_name='transactions')
+    order = models.ForeignKey(OrderInStore, on_delete=models.CASCADE, related_name='transactions')
