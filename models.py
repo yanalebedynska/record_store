@@ -50,3 +50,53 @@ class ConditionOfRecord(models.Model):
 
     def str(self):
         return self.condition_name
+
+
+# RECORD
+class Record(models.Model):
+    record_id = models.AutoField(primary_key=True)
+    title = models.CharField(max_length=50, null=False)
+    artist = models.CharField(max_length=100, null=False)
+    genre = models.CharField(max_length=50, null=False)
+    price = models.DecimalField(max_digits=10, decimal_places=2, null=False)
+    supplier = models.ForeignKey(Supplier, on_delete=models.CASCADE, related_name='records')
+    condition = models.ForeignKey(ConditionOfRecord, on_delete=models.CASCADE, related_name='records')
+
+    def str(self):
+        return self.title
+
+
+# STORE_USER
+class StoreUser(models.Model):
+    user_id = models.AutoField(primary_key=True)
+    username = models.CharField(max_length=50, unique=True, null=False)
+    user_password = models.CharField(max_length=150, null=False)
+    first_name = models.CharField(max_length=50, null=False)
+    last_name = models.CharField(max_length=50, null=False)
+    address = models.CharField(max_length=100, null=True, blank=True)
+    date_of_birth = models.DateField(null=False)
+    email = models.EmailField(max_length=150, null=False)
+    phonenumber = models.CharField(max_length=50, null=True, blank=True)
+
+    def str(self):
+        return self.username
+
+
+# SHIPPING_ADDRESS
+class ShippingAddress(models.Model):
+    shipping_address_id = models.AutoField(primary_key=True)
+    postal_code = models.IntegerField(null=False)
+    country = models.CharField(max_length=50, null=False)
+    address = models.CharField(max_length=150, null=False)
+    city = models.CharField(max_length=50, null=False)
+    state = models.CharField(max_length=50, null=False)
+
+    def str(self):
+        return f"{self.address}, {self.city}, {self.country}"
+
+
+# USER SHIPPING ADDRESS
+class UserShippingAddress(models.Model):
+    user_shipping_address_id = models.AutoField(primary_key=True)
+    shipping_address = models.ForeignKey(ShippingAddress, on_delete=models.CASCADE, related_name='user_addresses')
+    user = models.ForeignKey(StoreUser, on_delete=models.CASCADE, related_name='user_addresses')
