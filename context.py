@@ -77,3 +77,36 @@ class RecordContext(BaseContext):
 class ShippingAddressContext(BaseContext):
     def __init__(self):
         super().__init__(ShippingAddressRepository())
+
+# Контекст зв'язку користувача з адресою доставки (UserShippingAddress)
+class UserShippingAddressContext(BaseContext):
+    def __init__(self):
+        super().__init__(UserShippingAddressRepository())
+
+
+# Контекст кредитних карток (CreditCard)
+class CreditCardContext(BaseContext):
+    def __init__(self):
+        super().__init__(CreditCardRepository())
+
+
+# Контекст замовлень (Order)
+class OrderContext(BaseContext):
+    def __init__(self):
+        super().__init__(OrderRepository())
+
+
+# Контекст записів у замовленні (RecordInOrder)
+class RecordInOrderContext(BaseContext):
+    def __init__(self):
+        super().__init__(RecordInOrderRepository())
+
+
+# Контекст транзакцій у замовленні (TransactionInOrder)
+class TransactionInOrderContext(BaseContext):
+    def __init__(self):
+        super().__init__(TransactionInOrderRepository())
+
+
+# Створюємо глобальний об'єкт контексту, щоб використовувати в усьому додатку
+context = Context()
