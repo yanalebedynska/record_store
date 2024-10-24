@@ -26,3 +26,16 @@ def demonstrate_repositories():
         role=new_role
     )
     print(f"Added new employee: {new_employee.emp_name} {new_employee.last_name}")
+
+    # Виведемо всі ролі співробітників
+    print("\nList of all employees roles:")
+    for role in context.EmployeeRoleContext().get_all(): 
+        print(f"ID: {role.employee_role_id}, Rolename: {role.rolename}")
+
+    # Виведемо всіх співробітників
+    print("\nList of all employees:")
+    for employee in context.EmployeeContext().get_all(): 
+        print(f"ID: {employee.employee_id}, Employee name: {employee.emp_name} {employee.last_name}, Role: {employee.role.rolename}")
+
+if __name__ == "__main__":
+    demonstrate_repositories()
