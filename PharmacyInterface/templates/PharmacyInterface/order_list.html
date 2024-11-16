@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Order List</title>
+    <style>
+        body {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            margin: 0;
+            font-family: Arial, sans-serif;
+            background: linear-gradient(135deg, #fddde6, #dceefb); /* Градієнтний фон з ніжними кольорами */
+        }
+        .container {
+            text-align: center;
+            background-color: rgba(255, 255, 255, 0.95); /* Напівпрозоре біле тло */
+            padding: 30px;
+            border-radius: 15px;
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1); /* Легка тінь для глибини */
+            max-width: 600px;
+            width: 90%;
+        }
+        h1 {
+            color: #ff7aa8; /* Ніжний рожевий колір для заголовка */
+            margin-bottom: 20px;
+        }
+        p {
+            font-size: 18px;
+            font-weight: bold;
+            color: #333;
+            margin-bottom: 20px;
+        }
+        .order-card {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 15px 20px;
+            border-radius: 8px;
+            background-color: #f9f9f9;
+            margin: 10px 0;
+            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+            font-size: 16px;
+            color: #555;
+        }
+        .order-card strong {
+            display: block;
+            font-weight: bold;
+        }
+        .delete-button {
+            padding: 5px 15px;
+            font-size: 14px;
+            color: white;
+            background-color: #87cefa; /* Світлий блакитний для кнопки видалення */
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            transition: background-color 0.3s ease;
+        }
+        .delete-button:hover {
+            background-color: #5daedb;
+        }
+        .button-link {
+            display: inline-block;
+            padding: 10px 20px;
+            font-size: 16px;
+            color: white;
+            background-color: #ffb6c1; /* Ніжний рожевий для кнопки повернення */
+            text-decoration: none;
+            border-radius: 5px;
+            margin-top: 20px;
+            transition: background-color 0.3s ease;
+        }
+        .button-link:hover {
+            background-color: #f28ca6;
+        }
+        .no-orders {
+            font-size: 16px;
+            color: #777;
+            margin: 20px 0;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>My Orders</h1>
+        <p>Total amount of orders: {{ total_orders }}</p>
+
+        <ul style="list-style-type: none; padding: 0;">
+            {% for order in orders %}
+                <li class="order-card">
+                    <div>
+                        <strong>Product:</strong> {{ order.product.name }}<br>
+                        <strong>Quantity:</strong> {{ order.quantity }}<br>
+                        <strong>Date:</strong> {{ order.order_date }}
+                    </div>
+                    <form action="{% url 'PharmacyInterface:delete_order' order.order_id %}" method="post" style="display:inline;">
+                        {% csrf_token %}
+                        <button type="submit" class="delete-button" onclick="return confirm('Are you sure you want to delete this order?');">Delete</button>
+                    </form>
+                </li>
+            {% empty %}
+                <li class="no-orders">No orders available.</li>
+            {% endfor %}
+        </ul>
+
+        <a href="{% url 'PharmacyInterface:home' %}" class="button-link">Go back</a>
+    </div>
+</body>
+</html>

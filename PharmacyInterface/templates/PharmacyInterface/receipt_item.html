@@ -1,0 +1,122 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Order Form</title>
+    <style>
+        body {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            margin: 0;
+            font-family: Arial, sans-serif;
+            background: linear-gradient(135deg, #fddde6, #dceefb); /* Градієнтний фон з ніжними кольорами */
+        }
+        .container {
+            text-align: center;
+            background-color: rgba(255, 255, 255, 0.9); /* Напівпрозоре біле тло */
+            padding: 30px;
+            border-radius: 15px;
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1); /* Легка тінь для глибини */
+            max-width: 600px;
+            width: 90%;
+        }
+        h1 {
+            color: #ff7aa8; /* Ніжний рожевий колір для заголовка */
+            margin-bottom: 20px;
+        }
+        label {
+            display: block;
+            margin: 15px 0 5px;
+            font-weight: bold;
+            color: #555;
+        }
+        select, input[type="number"] {
+            padding: 10px;
+            border-radius: 5px;
+            border: 1px solid #ccc;
+            width: 100%;
+            max-width: 300px;
+            margin: 5px 0 15px;
+            box-sizing: border-box;
+        }
+        button {
+            padding: 10px 20px;
+            font-size: 16px;
+            color: white;
+            background-color: #eea0ff;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            transition: background-color 0.3s ease;
+        }
+        button:hover {
+            background-color: #ef66db;
+        }
+        .button-link {
+            display: inline-block;
+            padding: 10px 20px;
+            font-size: 16px;
+            color: white;
+            background-color: #ffb6c1; /* Ніжний рожевий для кнопки повернення */
+            text-decoration: none;
+            border-radius: 5px;
+            margin-top: 20px;
+            transition: background-color 0.3s ease;
+        }
+        .button-link:hover {
+            background-color: #f28ca6;
+        }
+        .message {
+            color: #4958fa;
+            margin-top: 20px;
+            font-size: 16px;
+        }
+        ul {
+            list-style-type: none;
+            padding: 0;
+            margin: 20px 0 0;
+            color: #555;
+        }
+        li {
+            margin: 10px 0;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Order Form</h1>
+        <form method="post" action="{% url 'PharmacyInterface:submit_order' %}">
+            {% csrf_token %}
+            <label for="product">Select Product:</label>
+            <select name="product" id="product" required>
+                {% for product in products %}
+                    <option value="{{ product.product_id }}">{{ product.name }}</option>
+                {% endfor %}
+            </select>
+
+            <label for="quantity">Quantity:</label>
+            <input type="number" id="quantity" name="quantity" min="1" required>
+
+            <button type="submit">Place Order</button>
+        </form>
+
+        <a href="{% url 'PharmacyInterface:home' %}" class="button-link">Back to home</a>
+
+        {% if messages %}
+            {% for message in messages %}
+                <p class="message">{{ message }}</p>
+            {% endfor %}
+        {% endif %}
+
+        <ul>
+            {% for item in receipt_items %}
+                <li>
+                    {{ item.quantity }} шт. - {{ item.product.name }}
+                </li>
+            {% endfor %}
+        </ul>
+    </div>
+</body>
+</html>
