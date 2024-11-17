@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Product Detail</title>
+    <style>
+        /* Загальні стилі для фону */
+        body {
+            font-family: Arial, sans-serif;
+            background: linear-gradient(to right, #ffccff, #ccffff);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            margin: 0;
+            color: #333;
+        }
+
+        /* Контейнер для контенту */
+        .container {
+            background-color: #ffffff;
+            padding: 20px;
+            border-radius: 10px;
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+            width: 300px;
+            text-align: center;
+        }
+
+        /* Стилі заголовка */
+        h1 {
+            color: #ff66b2;
+            font-size: 24px;
+            margin-bottom: 10px;
+        }
+
+        /* Стилі для тексту */
+        p {
+            font-size: 16px;
+            margin: 5px 0;
+        }
+
+        /* Кнопка редагування */
+        .button {
+            display: inline-block;
+            padding: 10px 20px;
+            margin: 10px 5px;
+            font-size: 16px;
+            color: white;
+            background-color: #ff66b2; /* рожевий */
+            text-decoration: none;
+            border-radius: 5px;
+            transition: background-color 0.3s;
+            border: none;
+            cursor: pointer;
+        }
+
+        .button:hover {
+            background-color: #ff99cc;
+        }
+
+        /* Кнопка видалення */
+        .button-delete {
+            background-color: #66ccff; /* голубий */
+        }
+
+        .button-delete:hover {
+            background-color: #99ddff;
+        }
+
+        /* Стилі для посилання "Back to list" */
+        .back-link {
+            display: block;
+            margin-top: 15px;
+            font-size: 14px;
+            color: #6666ff;
+            text-decoration: none;
+        }
+
+        .back-link:hover {
+            color: #3333cc;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>{{ object.name }}</h1>
+        <p>Category: {{ object.category }}</p>
+        <p>Expiration date: {{ object.expiration_date }}</p>
+        <p>Supplier: {{ object.supplier }}</p>
+        <p>Quantity in stock: {{ object.quantity_in_stock }}</p>
+
+
+        <!-- Посилання для повернення до списку продуктів -->
+        <a href="{% url 'PharmacyInterface:product_list' %}" class="back-link">Back to list</a>
+    </div>
+</body>
+</html>
