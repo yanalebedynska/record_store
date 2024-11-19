@@ -1,0 +1,212 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  {% load static %}
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Dashboard</title>
+
+  <!-- Підключення Plotly через CDN -->
+  <script src="https://cdn.plot.ly/plotly-2.20.0.min.js"></script>
+
+  <style>
+    body {
+        font-family: 'Poppins', sans-serif; /* Вишуканий шрифт */
+        margin: 0;
+        padding: 0;
+        background-color: #fdf9ff; /* ніжний рожевий */
+        color: #555;
+    }
+    .container {
+        padding: 20px;
+        max-width: 1200px;
+        margin: 20px auto;
+        background-color: #ffffff; /* білий фон для контейнера */
+        border-radius: 15px; /* більш округлі кути */
+        box-shadow: 0 8px 15px rgba(0, 0, 0, 0.15); /* сильніша тінь */
+    }
+    h1 {
+        text-align: center;
+        margin-bottom: 20px;
+        font-size: 40px;
+        color: #74cfec; /* ніжно-блакитний */
+        font-weight: bold;
+    }
+    .button-back {
+        display: inline-block;
+        margin-bottom: 20px;
+        padding: 10px 20px;
+        border: none;
+        border-radius: 25px;
+        background-color: #ff6f91; /* рожевий */
+        color: #ffffff;
+        font-size: 16px;
+        font-weight: bold;
+        text-decoration: none;
+        text-align: center;
+        cursor: pointer;
+        transition: all 0.3s ease;
+    }
+    .button-back:hover {
+        background-color: #ff3f60; /* темніший рожевий */
+    }
+    .filter-container {
+        text-align: center;
+        margin-bottom: 20px;
+        padding: 15px;
+        background-color: #e0f7fa; /* ніжний блакитний */
+        border-radius: 15px;
+        box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+    }
+    .filter-container label {
+        margin: 5px;
+        font-size: 18px;
+        font-weight: 500;
+        color: #eb5cf4; /* фіолетовий */
+    }
+    .filter-container select {
+        margin: 5px;
+        font-size: 16px;
+        padding: 8px 12px;
+        border: 2px solid #ff3fdf;
+        border-radius: 25px;
+        background-color: #ffffff;
+        color: #ea87f6;
+        cursor: pointer;
+        outline: none;
+        transition: all 0.3s ease;
+    }
+    .filter-container select:hover {
+        background-color: #f3e5f5; /* ніжно-фіолетовий */
+    }
+    .filter-container button {
+        margin: 5px;
+        font-size: 16px;
+        padding: 10px 20px;
+        border: none;
+        border-radius: 25px;
+        background-color: #65c2ef;
+        color: #ffffff;
+        font-weight: bold;
+        cursor: pointer;
+        outline: none;
+        transition: all 0.3s ease;
+    }
+    .filter-container button:hover {
+        background-color: #457fff; /* темніший блакитний */
+    }
+    .chart-container {
+        margin-bottom: 30px;
+        padding: 15px;
+        background-color: #fce4ec; /* ніжний рожевий */
+        border-radius: 15px;
+        box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+    }
+    .chart-title {
+        text-align: center;
+        font-size: 18px;
+        font-weight: bold;
+        color: #688ff8; /* синій */
+        margin-bottom: 10px;
+    }
+    .chart-container div {
+        width: 100%;
+        height: 500px;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+      <a href="/" class="button-back">Back Home</a>
+      <h1>Dashboard</h1>
+
+      <!-- Фільтр для вибору категорії -->
+      <div class="filter-container">
+          <label for="chart-category">Choose a category:</label>
+          <select id="chart-category">
+              <option value="all">All</option>
+              <option value="bar">Bar Charts</option>
+              <option value="pie">Pie Charts</option>
+              <option value="line">Line Charts</option>
+              <option value="area">Area Charts</option>
+          </select>
+          <button id="apply-filter">Apply</button>
+      </div>
+
+      <!-- Графіки -->
+      <div id="charts">
+          <div class="chart-container" data-category="bar">
+              <div id="plotly-bar"></div>
+          </div>
+          <div class="chart-container" data-category="pie">
+              <div id="plotly-pie"></div>
+          </div>
+          <div class="chart-container" data-category="bar">
+              <div id="plotly-bar-2"></div>
+          </div>
+          <div class="chart-container" data-category="line">
+              <div id="plotly-line"></div>
+          </div>
+          <div class="chart-container" data-category="pie">
+              <div id="plotly-pie-2"></div>
+          </div>
+          <div class="chart-container" data-category="area">
+              <div id="plotly-area"></div>
+          </div>
+      </div>
+  </div>
+
+  <script>
+      // Функція фільтрації графіків
+      document.getElementById('apply-filter').addEventListener('click', () => {
+          const selectedCategory = document.getElementById('chart-category').value;
+          const charts = document.querySelectorAll('.chart-container');
+
+          charts.forEach(chart => {
+              const category = chart.getAttribute('data-category');
+              if (selectedCategory === 'all' || category === selectedCategory) {
+                  chart.style.display = 'block';
+              } else {
+                  chart.style.display = 'none';
+              }
+          });
+      });
+
+      // Завантаження даних для кожного графіка
+      const fetchAndRender = (url, containerId, titleText) => {
+          fetch(url)
+              .then(response => {
+                  if (!response.ok) {
+                      throw new Error(`HTTP error! status: ${response.status}`);
+                  }
+                  return response.json();
+              })
+              .then(data => {
+                  const parsedData = JSON.parse(data);
+                  parsedData.layout = parsedData.layout || {};
+                  parsedData.layout.title = {
+                      text: titleText,
+                      font: { size: 18 },
+                      x: 0.5,
+                      y: 0.95
+                  };
+                  parsedData.layout.margin = { t: 10, b: 40, l: 40, r: 40 };
+                  parsedData.layout.height = 500;
+                  Plotly.newPlot(containerId, parsedData.data, parsedData.layout);
+              })
+              .catch(error => {
+                  console.error(`Error loading chart for ${containerId}:`, error);
+                  document.getElementById(containerId).innerHTML = `<p style="color:red;">Error loading chart: ${error.message}</p>`;
+              });
+      };
+
+      // Виклик функції для кожного графіка
+      fetchAndRender("{% url 'PharmacyInterface:plotly_bar_chart_1' %}", 'plotly-bar', 'Order Count by Product');
+      fetchAndRender("{% url 'PharmacyInterface:plotly_pie_chart_2' %}", 'plotly-pie', 'Quantity Distribution by Product');
+      fetchAndRender("{% url 'PharmacyInterface:plotly_bar_chart_3' %}", 'plotly-bar-2', 'Daily Total Income');
+      fetchAndRender("{% url 'PharmacyInterface:plotly_line_chart_4' %}", 'plotly-line', 'Number of Products Supplied by Suppliers');
+      fetchAndRender("{% url 'PharmacyInterface:plotly_pie_chart_5' %}", 'plotly-pie-2', 'Distribution of Total Products by Suppliers');
+      fetchAndRender("{% url 'PharmacyInterface:plotly_area_chart_6' %}", 'plotly-area', 'Suppliers Count by Total Products');
+  </script>
+</body>
+</html>
