@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Popular Supplier</title>
+    <style>
+        body {
+            font-family: 'Arial', sans-serif;
+            background: linear-gradient(to right, #e6f7ff, #ffe6f2);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            margin: 0;
+            color: #333;
+        }
+        .container {
+            background-color: rgba(255, 255, 255, 0.9);
+            padding: 20px 30px;
+            border-radius: 10px;
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+            max-width: 600px;
+            width: 90%;
+            text-align: center;
+        }
+        h1 {
+            color: #ff99cc;
+            margin-bottom: 20px;
+        }
+        p {
+            font-size: 18px;
+        }
+        ul {
+            list-style: none;
+            padding: 0;
+        }
+        li {
+            padding: 10px 0;
+            border-bottom: 1px solid #ddd;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Popular Supplier</h1>
+        {% if popular_supplier %}
+            <p><strong>Name:</strong> {{ popular_supplier.name }}</p>
+            <p><strong>Total Products:</strong> {{ popular_supplier.total_products }}</p>
+        {% else %}
+            <p>No suppliers found.</p>
+        {% endif %}
+
+        <h2>All Suppliers:</h2>
+        <ul>
+            {% for supplier in suppliers %}
+                <li>{{ supplier.name }} - Products: {{ supplier.total_products }}</li>
+            {% endfor %}
+        </ul>
+    </div>
+</body>
+</html>

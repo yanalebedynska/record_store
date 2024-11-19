@@ -1,0 +1,129 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Products with Orders</title>
+    <style>
+        /* Основний стиль для сторінки */
+        body {
+            font-family: 'Arial', sans-serif;
+            background: linear-gradient(to right, #e6f7ff, #ccf2ff); /* Ніжний блакитний градієнт */
+            margin: 0;
+            padding: 0;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+        }
+
+        /* Контейнер для таблиці */
+        .table-container {
+            background: rgba(255, 255, 255, 0.9);
+            padding: 20px;
+            border-radius: 15px;
+            box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1);
+            max-width: 800px;
+            width: 90%;
+            animation: fadeIn 0.5s ease-in-out;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
+        }
+
+        h1 {
+            text-align: center;
+            color: #0099cc; /* Глибокий блакитний для заголовка */
+            font-size: 28px;
+            margin-bottom: 20px;
+        }
+
+        /* Таблиця */
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-bottom: 20px;
+        }
+
+        thead {
+            background: #cceeff; /* Світло-блакитний для заголовків */
+        }
+
+        th {
+            text-align: left;
+            padding: 10px;
+            color: #006699; /* Темно-блакитний */
+            font-weight: bold;
+            font-size: 16px;
+        }
+
+        td {
+            padding: 10px;
+            border-bottom: 1px solid #ddd;
+            color: #333;
+        }
+
+        tbody tr:hover {
+            background: #f0faff; /* Легкий блакитний при наведенні */
+        }
+
+        .no-data {
+            text-align: center;
+            font-size: 16px;
+            color: #777;
+            padding: 20px;
+        }
+
+        /* Кнопка повернення */
+        .back-button {
+            display: inline-block;
+            padding: 10px 20px;
+            text-align: center;
+            font-size: 14px;
+            color: #fff;
+            background: #80ccff; /* Блакитний */
+            border-radius: 8px;
+            text-decoration: none;
+            transition: background 0.3s;
+        }
+
+        .back-button:hover {
+            background: #0099cc; /* Глибокий блакитний */
+        }
+
+        .button-container {
+            text-align: center;
+        }
+    </style>
+</head>
+<body>
+    <div class="table-container">
+        <h1>Products with Orders</h1>
+        <table>
+            <thead>
+                <tr>
+                    <th>Product</th>
+                    <th>Order Count</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for product in products_with_orders %}
+                    <tr>
+                        <td>{{ product.product__name }}</td>
+                        <td>{{ product.order_count }}</td>
+                    </tr>
+                {% empty %}
+                    <tr>
+                        <td colspan="2" class="no-data">No products with orders found.</td>
+                    </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        <div class="button-container">
+            <a href="{% url 'PharmacyInterface:home' %}" class="back-button">Back to Home</a>
+        </div>
+    </div>
+</body>
+</html>

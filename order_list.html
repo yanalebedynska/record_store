@@ -1,0 +1,125 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Order List</title>
+    <style>
+        body {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            margin: 0;
+            font-family: Arial, sans-serif;
+            background: linear-gradient(135deg, #fddde6, #dceefb); /* Ніжний рожево-блакитний градієнт */
+        }
+        .container {
+            text-align: center;
+            background-color: rgba(255, 255, 255, 0.95); /* Напівпрозоре біле тло */
+            padding: 30px;
+            border-radius: 15px;
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1); /* Легка тінь для глибини */
+            max-width: 600px;
+            width: 90%;
+        }
+        h1 {
+            color: #ff7aa8; /* Ніжний рожевий колір для заголовка */
+            margin-bottom: 20px;
+        }
+        p {
+            font-size: 18px;
+            font-weight: bold;
+            color: #333;
+            margin-bottom: 20px;
+        }
+        .order-card {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 15px 20px;
+            border-radius: 8px;
+            background-color: #f9f9f9;
+            margin: 10px 0;
+            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+            font-size: 16px;
+            color: #555;
+        }
+        .order-details {
+            display: flex;
+            flex-direction: column;
+            align-items: flex-start; /* Вирівнювання назв полів по лівому краю */
+            margin-right: 20px;
+        }
+        .order-details div {
+            display: flex;
+        }
+        .order-details strong {
+            margin-right: 5px; /* Зменшений відступ між назвою і значенням */
+            text-align: left; /* Вирівнювання тексту назв по лівому краю */
+        }
+        .order-details span {
+            font-weight: normal; /* Зроблено шрифт тоншим */
+            color: #555; /* Ніжний темно-сірий */
+        }
+        .delete-button {
+            padding: 10px 25px; /* Збільшені розміри кнопки */
+            font-size: 16px; /* Збільшений розмір тексту */
+            color: white;
+            background-color: #87cefa; /* Світлий блакитний для кнопки видалення */
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            transition: background-color 0.3s ease;
+        }
+        .delete-button:hover {
+            background-color: #5daedb;
+        }
+        .button-link {
+            display: inline-block;
+            padding: 10px 20px;
+            font-size: 16px;
+            color: white;
+            background-color: #ffb6c1; /* Ніжний рожевий для кнопки повернення */
+            text-decoration: none;
+            border-radius: 5px;
+            margin-top: 20px;
+            transition: background-color 0.3s ease;
+        }
+        .button-link:hover {
+            background-color: #f28ca6;
+        }
+        .no-orders {
+            font-size: 16px;
+            color: #777;
+            margin: 20px 0;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>My Orders</h1>
+        <p>Total amount of orders: {{ total_orders }}</p>
+        <p>Total price of orders: ${{ total_price }}</p>
+        <ul style="list-style-type: none; padding: 0;">
+            {% for order in orders %}
+                <li class="order-card">
+                    <div class="order-details">
+                        <div><strong>Product:</strong><span>{{ order.product.name }}</span></div>
+                        <div><strong>Quantity:</strong><span>{{ order.quantity }}</span></div>
+                        <div><strong>Date:</strong><span>{{ order.order_date }}</span></div>
+                        <div><strong>Order Total Price:</strong><span>${{ order.total_order_price }}</span></div>
+                    </div>
+                    <form action="{% url 'PharmacyInterface:delete_order' order.receipt_item_id %}" method="post" style="display:inline;">
+                        {% csrf_token %}
+                        <button type="submit" class="delete-button" onclick="return confirm('Are you sure you want to delete this order?');">Delete</button>
+                    </form>
+                </li>
+            {% empty %}
+                <li class="no-orders">No orders available.</li>
+            {% endfor %}
+        </ul>
+
+        <a href="{% url 'PharmacyInterface:home' %}" class="button-link">Go back</a>
+    </div>
+</body>
+</html>
