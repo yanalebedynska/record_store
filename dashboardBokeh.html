@@ -1,0 +1,450 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    {% load static %}
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dashboard</title>
+
+    <!-- Підключення Bokeh через CDN -->
+    <script src="https://cdn.bokeh.org/bokeh/release/bokeh-3.0.0.min.js"></script>
+    <link rel="stylesheet" href="https://cdn.bokeh.org/bokeh/release/bokeh-3.0.0.min.css">
+
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 0;
+            background-color: #f4f4f9;
+        }
+        .container {
+            padding: 20px;
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+        h1 {
+            text-align: center;
+            margin-bottom: 20px;
+        }
+        .chart-container {
+            margin-bottom: 40px;
+        }
+        .chart-title {
+            text-align: center;
+            font-size: 18px;
+            margin-bottom: 10px;
+        }
+        #bokeh-pie-1, #bokeh-pie-2 {
+            width: 100%;
+            height: 500px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Dashboard</h1>
+
+        <!-- Фільтри для першого графіка -->
+
+        <div class="filters">
+            <label for="slider-min-orders">Minimum Orders (Slider):</label>
+            <input type="range" id="slider-min-orders" min="0" max="30" value="1">
+            <span id="slider-value-orders">1</span>
+            <button id="apply-slider-filters">Apply Slider Filter</button>
+        </div>
+
+        <!-- Стовпчастий графік (Bokeh) -->
+        <div class="chart-container">
+            <div class="chart-title">Bar Chart (Bokeh): Order Distribution by Product</div>
+            <div id="bokeh-bar-1"></div>
+        </div>
+
+        <!-- Фільтри для другого графіка -->
+        <div class="filters">
+            <label for="min-quantity">Minimum Quantity:</label>
+            <input type="number" id="min-quantity" value="1">
+            <button id="apply-pie-filters">Apply Filters</button>
+        </div>
+
+        <!-- Кругова діаграма 2 (Bokeh) -->
+        <div class="chart-container">
+            <div class="chart-title">Pie Chart (Bokeh): Receipt Items Distribution by Quantity</div>
+            <div id="bokeh-pie-2"></div>
+        </div>
+
+        <div class="filters">
+            <label for="min-income">Minimum Income:</label>
+            <input type="number" id="min-income" value="0">
+            <button id="apply-income-filters">Apply Filters</button>
+        </div>
+
+        <div class="filters">
+            <label for="category-select">Select Category:</label>
+            <select id="category-select">
+                <option value="all">All Categories</option>
+                <option value="pills">Pills</option>
+                <option value="painkillers">Pain Killers</option>
+                <option value="antiphlogistic">Antiphlogistic</option>
+            </select>
+            <button id="apply-category-filters">Apply Category Filter</button>
+        </div>
+
+
+        <!-- Стовпчастий графік (Bokeh) -->
+        <div class="chart-container">
+            <div class="chart-title">Bar Chart: Total Income by Product Category</div>
+            <div id="bokeh-bar-3"></div>
+        </div>
+
+
+
+        <div class="filters">
+            <label for="min-supplied-products">Minimum Supplied Products:</label>
+            <input type="number" id="min-supplied-products" value="0">
+            <button id="apply-line-filters">Apply Filters</button>
+        </div>
+
+        <!-- Лінійний графік 1 (Bokeh) -->
+        <div class="chart-container">
+            <div class="chart-title">Line Chart: Total Products by Supplier</div>
+            <div id="bokeh-line"></div>
+        </div>
+
+
+
+        <div class="filters">
+            <label for="slider-min-products">Minimum Products (Slider):</label>
+            <input type="range" id="slider-min-products" min="0" max=15 value="0">
+            <span id="slider-value-products">0</span>
+            <button id="apply-pie-5-slider-filters">Apply Slider Filter</button>
+        </div>
+
+        <!-- Кругова діаграма (Bokeh) -->
+        <div class="chart-container">
+            <div class="chart-title">Pie Chart: Distribution of Total Products by Suppliers</div>
+            <div id="bokeh-pie-3"></div>
+        </div>
+
+
+
+        <div class="filters">
+            <label for="min-total-products">Minimum Total Products:</label>
+            <input type="number" id="min-total-products" value="0">
+            <button id="apply-area-filters">Apply Filters</button>
+        </div>
+
+        <!-- Графік області (Bokeh) -->
+        <div class="chart-container">
+            <div class="chart-title">Area Chart: Suppliers Distribution by Total Products</div>
+            <div id="bokeh-area"></div>
+        </div>
+    </div>
+
+    <script>
+        // Завантаження кругової діаграми 1 (Bokeh)
+        fetch("{% url 'PharmacyInterface:bokeh_bar_chart_1' %}?min_orders=1")
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+                return response.json();
+            })
+            .then(data => {
+                Bokeh.embed.embed_item(data, "bokeh-bar-1"); // Вбудовуємо графік у контейнер з ID bokeh-pie-1
+            })
+            .catch(error => {
+                console.error('Error loading pie chart 1 (Bokeh):', error);
+                document.getElementById('bokeh-bar-1').innerHTML = `<p style="color:red;">Error loading Bokeh pie chart: ${error.message}</p>`;
+            });
+
+        // Завантаження кругової діаграми (Bokeh)
+        fetch("{% url 'PharmacyInterface:bokeh_pie_chart_2' %}")
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+                return response.json();
+            })
+            .then(data => {
+                Bokeh.embed.embed_item(data, "bokeh-pie-2"); // Вбудовуємо графік у контейнер з ID bokeh-pie-2
+            })
+            .catch(error => {
+                console.error('Error loading pie chart (Bokeh):', error);
+                document.getElementById('bokeh-pie-2').innerHTML = `<p style="color:red;">Error loading Bokeh pie chart: ${error.message}</p>`;
+            });
+
+        fetch("{% url 'PharmacyInterface:bokeh_bar_chart_3' %}")
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+                return response.json();
+            })
+            .then(data => {
+                Bokeh.embed.embed_item(data, "bokeh-bar-2");
+            })
+            .catch(error => {
+                console.error('Error loading bar chart (Bokeh):', error);
+                document.getElementById('bokeh-bar-2').innerHTML = `<p style="color:red;">Error loading Bokeh bar chart: ${error.message}</p>`;
+            });
+
+         // Завантаження лінійного графіка (Bokeh)
+        fetch("{% url 'PharmacyInterface:bokeh_line_chart_4' %}")
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+                return response.json();
+            })
+            .then(data => {
+                Bokeh.embed.embed_item(data, "bokeh-line");
+            })
+            .catch(error => {
+                console.error('Error loading line chart (Bokeh):', error);
+                document.getElementById('bokeh-line').innerHTML = `<p style="color:red;">Error loading Bokeh line chart: ${error.message}</p>`;
+            });
+
+        // Завантаження кругової діаграми (Bokeh)
+        fetch("{% url 'PharmacyInterface:bokeh_pie_chart_5' %}")
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+                return response.json();
+            })
+            .then(data => {
+                Bokeh.embed.embed_item(data, "bokeh-pie-3");
+            })
+            .catch(error => {
+                console.error('Error loading pie chart (Bokeh):', error);
+                document.getElementById('bokeh-pie-3').innerHTML = `<p style="color:red;">Error loading Bokeh pie chart: ${error.message}</p>`;
+            });
+
+        // Завантаження графіка області (Bokeh)
+        fetch("{% url 'PharmacyInterface:bokeh_area_chart_6' %}")
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+                return response.json();
+            })
+            .then(data => {
+                Bokeh.embed.embed_item(data, "bokeh-area");
+            })
+            .catch(error => {
+                console.error('Error loading area chart (Bokeh):', error);
+                document.getElementById('bokeh-area').innerHTML = `<p style="color:red;">Error loading Bokeh area chart: ${error.message}</p>`;
+            });
+
+        // Завантаження початкового графіка без фільтра
+    document.addEventListener('DOMContentLoaded', function () {
+        fetch(`/home/dashboardBokeh/bokeh-bar-3/?min_income=0`) // Без фільтра за замовчуванням
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+                return response.json();
+            })
+            .then(data => {
+                const chartContainer = document.getElementById('bokeh-bar-3');
+                Bokeh.embed.embed_item(data, "bokeh-bar-3");
+            })
+            .catch(error => {
+                console.error('Error loading initial chart:', error);
+                document.getElementById('bokeh-bar-3').innerHTML = `<p style="color:red;">Error loading chart: ${error.message}</p>`;
+            });
+    });
+
+
+        document.addEventListener('DOMContentLoaded', function () {
+    fetch(`/home/dashboardBokeh/bokeh-line/?min_supplied_products=0`) // Без фільтра за замовчуванням
+        .then(response => {
+            if (!response.ok) {
+                throw new Error(`HTTP error! status: ${response.status}`);
+            }
+            return response.json();
+        })
+        .then(data => {
+            const chartContainer = document.getElementById('bokeh-line');
+            chartContainer.innerHTML = ''; // Очистити контейнер
+            Bokeh.embed.embed_item(data, "bokeh-line");
+        })
+        .catch(error => {
+            console.error('Error loading initial line chart:', error);
+            document.getElementById('bokeh-line').innerHTML = `<p style="color:red;">Error loading chart: ${error.message}</p>`;
+        });
+});
+
+
+
+        /////////////////////////////
+        document.getElementById('apply-pie-filters').addEventListener('click', function () {
+    const minQuantity = document.getElementById('min-quantity').value;
+
+    fetch(`/home/dashboardBokeh/bokeh-pie-2/?min_quantity=${minQuantity}`)
+        .then(response => {
+            if (!response.ok) {
+                throw new Error(`HTTP error! status: ${response.status}`);
+            }
+            return response.json();
+        })
+        .then(data => {
+            const chartContainer = document.getElementById('bokeh-pie-2');
+            chartContainer.innerHTML = ''; // Очищуємо попередній графік
+            Bokeh.embed.embed_item(data, "bokeh-pie-2");
+        })
+        .catch(error => {
+            console.error('Error loading filtered chart:', error);
+            document.getElementById('bokeh-pie-2').innerHTML = `<p style="color:red;">Error loading chart: ${error.message}</p>`;
+        });
+});
+
+        document.getElementById('apply-income-filters').addEventListener('click', function () {
+    const minIncome = document.getElementById('min-income').value;
+
+    fetch(`/home/dashboardBokeh/bokeh-bar-3/?min_income=${minIncome}`)
+        .then(response => {
+            if (!response.ok) {
+                throw new Error(`HTTP error! status: ${response.status}`);
+            }
+            return response.json();
+        })
+        .then(data => {
+            const chartContainer = document.getElementById('bokeh-bar-3');
+            chartContainer.innerHTML = ''; // Очистити контейнер перед відображенням нового графіка
+            Bokeh.embed.embed_item(data, "bokeh-bar-3");
+        })
+        .catch(error => {
+            console.error('Error loading filtered chart:', error);
+            document.getElementById('bokeh-bar-3').innerHTML = `<p style="color:red;">Error loading chart: ${error.message}</p>`;
+        });
+});
+
+
+        document.getElementById('apply-line-filters').addEventListener('click', function () {
+    const minSuppliedProducts = document.getElementById('min-supplied-products').value;
+
+    fetch(`/home/dashboardBokeh/bokeh-line/?min_supplied_products=${minSuppliedProducts}`)
+        .then(response => {
+            if (!response.ok) {
+                throw new Error(`HTTP error! status: ${response.status}`);
+            }
+            return response.json();
+        })
+        .then(data => {
+            const chartContainer = document.getElementById('bokeh-line');
+            chartContainer.innerHTML = ''; // Очистити контейнер перед завантаженням нового графіка
+            Bokeh.embed.embed_item(data, "bokeh-line");
+        })
+        .catch(error => {
+            console.error('Error loading filtered line chart:', error);
+            document.getElementById('bokeh-line').innerHTML = `<p style="color:red;">Error loading chart: ${error.message}</p>`;
+        });
+});
+        // Слайдер для мінімальної кількості продуктів
+const productSlider = document.getElementById('slider-min-products');
+const productSliderValueDisplay = document.getElementById('slider-value-products');
+
+// Оновлення відображення значення слайдера
+productSlider.addEventListener('input', () => {
+    productSliderValueDisplay.textContent = productSlider.value;
+});
+
+// Обробка натискання кнопки для фільтрації
+document.getElementById('apply-pie-5-slider-filters').addEventListener('click', function () {
+    const minProducts = productSlider.value;
+
+    fetch(`/home/dashboardBokeh/bokeh-pie-3/?min_products=${minProducts}`)
+        .then(response => {
+            if (!response.ok) {
+                throw new Error(`HTTP error! status: ${response.status}`);
+            }
+            return response.json();
+        })
+        .then(data => {
+            const chartContainer = document.getElementById('bokeh-pie-3');
+            chartContainer.innerHTML = ''; // Очищення контейнера
+            Bokeh.embed.embed_item(data, "bokeh-pie-3");
+        })
+        .catch(error => {
+            console.error('Error loading filtered chart:', error);
+            document.getElementById('bokeh-pie-3').innerHTML = `<p style="color:red;">Error loading chart: ${error.message}</p>`;
+        });
+});
+
+        document.getElementById('apply-area-filters').addEventListener('click', function () {
+    const minTotalProducts = document.getElementById('min-total-products').value;
+
+    fetch(`/home/dashboardBokeh/bokeh-area/?min_total_products=${minTotalProducts}`)
+        .then(response => {
+            if (!response.ok) {
+                throw new Error(`HTTP error! status: ${response.status}`);
+            }
+            return response.json();
+        })
+        .then(data => {
+            const chartContainer = document.getElementById('bokeh-area');
+            chartContainer.innerHTML = ''; // Очищення попереднього графіка
+            Bokeh.embed.embed_item(data, "bokeh-area");
+        })
+        .catch(error => {
+            console.error('Error loading filtered area chart:', error);
+            document.getElementById('bokeh-area').innerHTML = `<p style="color:red;">Error loading chart: ${error.message}</p>`;
+        });
+});
+        // Слайдер
+const slider = document.getElementById('slider-min-orders');
+const sliderValueDisplay = document.getElementById('slider-value-orders');
+
+slider.addEventListener('input', () => {
+    sliderValueDisplay.textContent = slider.value; // Оновлення значення слайдера
+});
+
+document.getElementById('apply-slider-filters').addEventListener('click', function () {
+    const minOrders = slider.value;
+
+    fetch(`/home/dashboardBokeh/bokeh-bar-1/?min_orders=${minOrders}`)
+        .then(response => {
+            if (!response.ok) {
+                throw new Error(`HTTP error! status: ${response.status}`);
+            }
+            return response.json();
+        })
+        .then(data => {
+            const chartContainer = document.getElementById('bokeh-bar-1');
+            chartContainer.innerHTML = ''; // Очищення контейнера
+            Bokeh.embed.embed_item(data, "bokeh-bar-1");
+        })
+        .catch(error => {
+            console.error('Error loading chart:', error);
+            document.getElementById('bokeh-bar-1').innerHTML = `<p style="color:red;">Error loading chart: ${error.message}</p>`;
+        });
+});
+
+        document.getElementById('apply-category-filters').addEventListener('click', function () {
+    const selectedCategory = document.getElementById('category-select').value;
+
+    fetch(`/home/dashboardBokeh/bokeh-bar-3/?category=${selectedCategory}`)
+        .then(response => {
+            if (!response.ok) {
+                throw new Error(`HTTP error! status: ${response.status}`);
+            }
+            return response.json();
+        })
+        .then(data => {
+            const chartContainer = document.getElementById('bokeh-bar-3');
+            chartContainer.innerHTML = ''; // Очистити контейнер
+            Bokeh.embed.embed_item(data, "bokeh-bar-3");
+        })
+        .catch(error => {
+            console.error('Error loading filtered chart:', error);
+            document.getElementById('bokeh-bar-3').innerHTML = `<p style="color:red;">Error loading chart: ${error.message}</p>`;
+        });
+});
+
+
+    </script>
+
+
+</body>
+</html>
