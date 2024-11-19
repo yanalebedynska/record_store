@@ -1,0 +1,15 @@
+// Завантаження кругової діаграми 1 (Bokeh)
+        fetch("{% url 'PharmacyInterface:bokeh_bar_chart_1' %}?min_orders=1")
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+                return response.json();
+            })
+            .then(data => {
+                Bokeh.embed.embed_item(data, "bokeh-bar-1"); // Вбудовуємо графік у контейнер з ID bokeh-pie-1
+            })
+            .catch(error => {
+                console.error('Error loading pie chart 1 (Bokeh):', error);
+                document.getElementById('bokeh-bar-1').innerHTML = `<p style="color:red;">Error loading Bokeh pie chart: ${error.message}</p>`;
+            });
