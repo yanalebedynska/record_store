@@ -1,0 +1,203 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+   {% load static %}
+   <meta charset="UTF-8">
+   <meta name="viewport" content="width=device-width, initial-scale=1.0">
+   <title>Dashboard</title>
+
+
+   <!-- Підключення Plotly через CDN -->
+   <script src="https://cdn.plot.ly/plotly-2.20.0.min.js"></script>
+
+
+   <style>
+       body {
+           font-family: Arial, sans-serif;
+           margin: 0;
+           padding: 0;
+           background-color: #f4f4f9;
+       }
+       .container {
+           padding: 20px;
+           max-width: 1200px;
+           margin: 0 auto;
+       }
+       h1 {
+           text-align: center;
+           margin-bottom: 20px;
+       }
+       .chart-container {
+           margin-bottom: 40px;
+       }
+       .chart-title {
+           text-align: center;
+           font-size: 18px;
+           margin-bottom: 10px;
+       }
+       #plotly-bar, #plotly-pie, #plotly-line {
+           width: 100%;
+           height: 500px;
+       }
+   </style>
+</head>
+<body>
+   <div class="container">
+       <h1>Dashboard</h1>
+
+
+       <!-- Стовпчиковий графік -->
+       <div class="chart-container">
+           <div class="chart-title">Bar Chart: Order Count by Product</div>
+           <div id="plotly-bar"></div>
+       </div>
+
+
+       <!-- Кругова діаграма -->
+       <div class="chart-container">
+           <div class="chart-title">Pie Chart: Quantity Distribution by Product</div>
+           <div id="plotly-pie"></div>
+       </div>
+
+
+       <!-- Лінійний графік -->
+       <div class="chart-container">
+           <div class="chart-title">Line Chart: Monthly Total Income</div>
+           <div id="plotly-bar-2"></div>
+       </div>
+
+
+       <!-- Лінійна діаграма -->
+       <div class="chart-container">
+           <div class="chart-title">Line Chart: Number of Products Supplied by Suppliers</div>
+           <div id="plotly-line"></div>
+       </div>
+
+
+       <!-- Кругова діаграма для постачальників -->
+       <div class="chart-container">
+           <div class="chart-title">Pie Chart: Distribution of Total Products by Suppliers</div>
+           <div id="plotly-pie-2"></div>
+       </div>
+
+
+       <!-- Графік зони -->
+       <div class="chart-container">
+           <div class="chart-title">Area Chart: Suppliers Count by Total Products</div>
+           <div id="plotly-area"></div>
+       </div>
+   </div>
+
+
+   <script>
+       // Завантаження стовпчикового графіка (Plotly)
+       fetch("{% url 'PharmacyInterface:plotly_bar_chart_1' %}?min_orders=1")
+           .then(response => {
+               if (!response.ok) {
+                   throw new Error(`HTTP error! status: ${response.status}`);
+               }
+               return response.json();
+           })
+           .then(data => {
+               const parsedData = JSON.parse(data); // Парсимо JSON
+               Plotly.newPlot('plotly-bar', parsedData.data, parsedData.layout);
+           })
+           .catch(error => {
+               console.error('Error loading bar chart:', error);
+               document.getElementById('plotly-bar').innerHTML = `<p style="color:red;">Error loading bar chart: ${error.message}</p>`;
+           });
+
+
+       // Завантаження кругової діаграми (Plotly)
+       fetch("{% url 'PharmacyInterface:plotly_pie_chart_2' %}")
+           .then(response => {
+               if (!response.ok) {
+                   throw new Error(`HTTP error! status: ${response.status}`);
+               }
+               return response.json();
+           })
+           .then(data => {
+               const parsedData = JSON.parse(data); // Парсимо JSON
+               Plotly.newPlot('plotly-pie', parsedData.data, parsedData.layout);
+           })
+           .catch(error => {
+               console.error('Error loading pie chart:', error);
+               document.getElementById('plotly-pie').innerHTML = `<p style="color:red;">Error loading pie chart: ${error.message}</p>`;
+           });
+
+
+       // Завантаження лінійного графіка (Plotly)
+       fetch("{% url 'PharmacyInterface:plotly_bar_chart_3' %}")
+           .then(response => {
+               if (!response.ok) {
+                   throw new Error(`HTTP error! status: ${response.status}`);
+               }
+               return response.json();
+           })
+           .then(data => {
+               const parsedData = JSON.parse(data); // Парсимо JSON
+               Plotly.newPlot('plotly-bar-2', parsedData.data, parsedData.layout);
+           })
+           .catch(error => {
+               console.error('Error loading line chart:', error);
+               document.getElementById('plotly-bar-2').innerHTML = `<p style="color:red;">Error loading line chart: ${error.message}</p>`;
+           });
+
+
+
+
+       // Завантаження лінійної діаграми (Plotly)
+       fetch("{% url 'PharmacyInterface:plotly_line_chart_4' %}")
+           .then(response => {
+               if (!response.ok) {
+                   throw new Error(`HTTP error! status: ${response.status}`);
+               }
+               return response.json();
+           })
+           .then(data => {
+               const parsedData = JSON.parse(data); // Парсимо JSON
+               Plotly.newPlot('plotly-line', parsedData.data, parsedData.layout);
+           })
+           .catch(error => {
+               console.error('Error loading line chart:', error);
+               document.getElementById('plotly-line').innerHTML = `<p style="color:red;">Error loading line chart: ${error.message}</p>`;
+           });
+
+
+       // Завантаження кругової діаграми для постачальників (Plotly)
+       fetch("{% url 'PharmacyInterface:plotly_pie_chart_5' %}")
+           .then(response => {
+               if (!response.ok) {
+                   throw new Error(`HTTP error! status: ${response.status}`);
+               }
+               return response.json();
+           })
+           .then(data => {
+               const parsedData = JSON.parse(data); // Парсимо JSON
+               Plotly.newPlot('plotly-pie-2', parsedData.data, parsedData.layout);
+           })
+           .catch(error => {
+               console.error('Error loading pie chart:', error);
+               document.getElementById('plotly-pie-2').innerHTML = `<p style="color:red;">Error loading pie chart: ${error.message}</p>`;
+           });
+
+
+       // Завантаження графіка зони (Plotly)
+       fetch("{% url 'PharmacyInterface:plotly_area_chart_6' %}")
+           .then(response => {
+               if (!response.ok) {
+                   throw new Error(`HTTP error! status: ${response.status}`);
+               }
+               return response.json();
+           })
+           .then(data => {
+               const parsedData = JSON.parse(data); // Парсимо JSON
+               Plotly.newPlot('plotly-area', parsedData.data, parsedData.layout);
+           })
+           .catch(error => {
+               console.error('Error loading area chart:', error);
+               document.getElementById('plotly-area').innerHTML = `<p style="color:red;">Error loading area chart: ${error.message}</p>`;
+           });
+   </script>
+</body>
+</html>
