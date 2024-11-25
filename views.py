@@ -423,31 +423,39 @@ def dashboardBokeh(request):
 #products_with_order_count
 def bokeh_bar_chart_1(request):
     try:
-        # Отримуємо параметр min_orders з запиту
+        # Отримуємо параметр min_orders із запиту
         min_orders = int(request.GET.get('min_orders', 1))
 
-        # Отримуємо дані через репозиторій
-        repository = ReceiptItemRepository()
-        queryset = repository.get_products_with_order_count(min_orders)
+        # Імітуємо об'єкт request із query_params
+        mock_request = SimpleNamespace(query_params={"min_orders": min_orders})
 
-        # Перетворення даних у DataFrame
-        data = list(queryset)
-        if not data:  # Якщо даних немає, повертаємо помилку
+        # Викликаємо функцію з PharmacyApp напряму
+        receipt_item_view_set = ReceiptItemViewSet()
+        data = receipt_item_view_set.products_with_order_count(mock_request)
+
+        if not data["chart_data"]:  # Якщо даних немає
             return JsonResponse({"error": "No data available for bar chart"}, status=404)
 
-        df = pd.DataFrame(data)
+        # Дані для побудови графіка
+        chart_data = data["chart_data"]
+        product_names = [item["product__name"] for item in chart_data]
+        order_counts = [item["order_count"] for item in chart_data]
 
         # Додавання кольорів для стовпців
         from bokeh.palettes import Category20
-        palette = Category20[max(3, len(df))]  # Динамічний вибір кольорів
-        df['color'] = [palette[i % len(palette)] for i in range(len(df))]
+        palette = Category20[max(3, len(product_names))]  # Динамічний вибір кольорів
+        colors = [palette[i % len(palette)] for i in range(len(product_names))]
 
         # Підготовка даних для Bokeh
-        source = ColumnDataSource(df)
+        source = ColumnDataSource(data=dict(
+            product__name=product_names,
+            order_count=order_counts,
+            color=colors
+        ))
 
         # Створення стовпчастої діаграми
         p = figure(
-            x_range=df['product__name'].tolist(),
+            x_range=product_names,
             height=500, width=800,
             title="Order Count by Product",
             toolbar_location=None,
@@ -476,46 +484,70 @@ def bokeh_bar_chart_1(request):
         print(f"Error in bokeh_bar_chart_1: {e}")
         return JsonResponse({"error": str(e)}, status=500)
 
-
 #receiptitems_stats
 def bokeh_pie_chart_2(request):
     try:
-        # Отримуємо параметр min_quantity з запиту
+        # Отримання параметра фільтрації
         min_quantity = int(request.GET.get('min_quantity', 1))
+        print(f"Filtering with min_quantity: {min_quantity}")  # Діагностика
 
-        # Отримуємо дані через репозиторій
-        repository = ReceiptItemRepository()
-        queryset = repository.get_all()
+        # Імітуємо запит із параметрами
+        mock_request = SimpleNamespace(query_params={"min_quantity": min_quantity})
+        receipt_item_view_set = ReceiptItemViewSet()
+        response_data = receipt_item_view_set.receiptitems_stats(mock_request)
 
-        # Перетворення даних у DataFrame
-        data = queryset.values('receipt_item_id', 'quantity', 'product__price')
-        df = pd.DataFrame(list(data))
-
-        # Перевірка, чи є дані
-        if df.empty:
+        # Перевіряємо наявність даних
+        if "chart_data" not in response_data or not response_data["chart_data"]:
             return JsonResponse({"error": "No data available for pie chart"}, status=404)
 
-        # Фільтрація за min_quantity
-        df = df[df['quantity'] >= min_quantity]
+        # Дані для кругової діаграми
+        chart_data = response_data["chart_data"]
+        filtered_data = [item for item in chart_data if item["quantity"] >= min_quantity]
+        print(f"Filtered data: {filtered_data}")  # Діагностика
 
-        # Обчислення часток
-        df_grouped = df.groupby('receipt_item_id')['quantity'].sum().reset_index()
-        df_grouped['angle'] = df_grouped['quantity'] / df_grouped['quantity'].sum() * 2 * pi
-        df_grouped['color'] = Category20c[len(df_grouped)]
+        if not filtered_data:
+            return JsonResponse({"error": "No data matches the filter."}, status=404)
 
-        # Створення кругової діаграми
-        p = figure(height=500, width=500, title="Filtered Receipt Items Distribution by Quantity",
-                   toolbar_location=None, tools="hover", tooltips="@receipt_item_id: @quantity", x_range=(-0.5, 1.0))
+        # Підготовка даних для графіка
+        receipt_items = [item["receipt_item_id"] for item in filtered_data]
+        quantities = [item["quantity"] for item in filtered_data]
+        total_quantity = sum(quantities)
+        angles = [q / total_quantity * 2 * pi for q in quantities]
 
-        p.wedge(x=0, y=1, radius=0.4,
-                start_angle=cumsum('angle', include_zero=True),
-                end_angle=cumsum('angle'),
-                line_color="white", fill_color='color', legend_field='receipt_item_id', source=df_grouped)
+        # Додавання кольорів
+        from bokeh.palettes import Category20c
+        colors = Category20c[len(receipt_items)]
+
+        # Формування даних для Bokeh
+        source = ColumnDataSource(data=dict(
+            receipt_item_id=receipt_items,
+            quantity=quantities,
+            angle=angles,
+            color=colors
+        ))
+
+        # Створення графіка
+        p = figure(
+            height=500, width=500,
+            title="Filtered Quantity Distribution by Receipt Items",
+            toolbar_location=None,
+            tools="hover",
+            tooltips="@receipt_item_id: @quantity", x_range=(-0.5, 1.0)
+        )
+
+        p.wedge(
+            x=0, y=1, radius=0.4,
+            start_angle=cumsum('angle', include_zero=True),
+            end_angle=cumsum('angle'),
+            line_color="white", fill_color='color',
+            legend_field='receipt_item_id', source=source
+        )
 
         p.axis.axis_label = None
         p.axis.visible = False
         p.grid.grid_line_color = None
 
+        # Серіалізація графіка
         return JsonResponse(json_item(p), safe=False)
 
     except Exception as e:
@@ -523,113 +555,123 @@ def bokeh_pie_chart_2(request):
         return JsonResponse({"error": str(e)}, status=500)
 
 
-
 #receiptitems_grouped_stats
 def bokeh_bar_chart_3(request):
     try:
-        # Отримуємо параметри
+        # Отримуємо параметри фільтрації з GET-запиту
         min_income = float(request.GET.get('min_income', 0))
-        category = request.GET.get('category', None)  # Новий параметр для фільтрації за категорією
+        category = request.GET.get('category', None)  # Фільтр за категорією, якщо задано
 
-        # Отримуємо дані через репозиторій
-        repository = ReceiptItemRepository()
-        queryset = repository.get_all()
-        data = queryset.values('product__category', 'order_date', 'quantity', 'product__price')
-        df = pd.DataFrame(list(data))
+        # Імітуємо об'єкт request із параметрами
+        mock_request = SimpleNamespace(query_params={"min_income": min_income, "category": category})
+        receipt_item_view_set = ReceiptItemViewSet()
+        response_data = receipt_item_view_set.receiptitems_grouped_stats(mock_request)
 
-        if df.empty:
+        # Перевіряємо, чи є дані
+        if "by_day" not in response_data or not response_data["by_day"]:
             return JsonResponse({"error": "No data available for bar chart"}, status=404)
 
-        # Обчислення total_income
-        df['total_income'] = df['quantity'] * df['product__price']
-        df['total_income'] = df['total_income'].astype(float)  # Конвертація у float
+        # Отримуємо дані
+        chart_data = response_data["by_day"]
 
-        # Групування за категоріями
-        category_group = df.groupby('product__category').agg(total_income=('total_income', 'sum')).reset_index()
+        # Фільтрація за мінімальним доходом
+        filtered_data = [item for item in chart_data if float(item["total_income"]) >= min_income]
+        print(f"Filtered data: {filtered_data}")  # Логування для діагностики
 
-        # Фільтрація за категорією
-        if category and category != "all":
-            category_group = category_group[category_group['product__category'] == category]
-
-        # Фільтрація за min_income
-        if min_income > 0:
-            category_group = category_group[category_group['total_income'] >= min_income]
-
-        if category_group.empty:
+        if not filtered_data:
             return JsonResponse({"error": "No data matches the filter."}, status=404)
 
-        # Додавання кольорів для графіка
-        from bokeh.palettes import Category20
-        palette = Category20[max(3, len(category_group))]
-        category_group['color'] = [palette[i % len(palette)] for i in range(len(category_group))]
+        # Підготовка списків для графіка
+        days = [item["day"] for item in filtered_data]
+        total_income = [float(item["total_income"]) for item in filtered_data]  # Конвертація Decimal у float
+
+        # Форматування дат у вигляді строк
+        formatted_days = [str(day) for day in days]
+
+        # Підготовка даних для Bokeh
+        source = ColumnDataSource(data=dict(
+            day=formatted_days,  # Перетворені строки дат
+            total_income=total_income
+        ))
 
         # Створення графіка
         p = figure(
-            x_range=category_group['product__category'].tolist(),
+            x_range=source.data['day'],
             height=500, width=800,
-            title="Filtered Total Income by Product Category" if min_income > 0 else "Total Income by Product Category",
+            title="Filtered Daily Total Income" if min_income > 0 else "Daily Total Income",
             toolbar_location=None,
             tools="hover",
-            tooltips="@product__category: @total_income"
+            tooltips="@day: @total_income"
         )
 
         p.vbar(
-            x='product__category',
+            x='day',
             top='total_income',
             width=0.8,
-            color='color',
-            source=ColumnDataSource(category_group)
+            source=source
         )
 
-        p.xgrid.grid_line_color = None
-        p.y_range.start = 0
-        p.xaxis.axis_label = "Product Categories"
+        p.xaxis.axis_label = "Day"
         p.yaxis.axis_label = "Total Income"
         p.xaxis.major_label_orientation = 0.8
+        p.y_range.start = 0
+        p.xgrid.grid_line_color = None
 
+        # Серіалізація графіка
         return JsonResponse(json_item(p), safe=False)
 
     except Exception as e:
         print(f"Error in bokeh_bar_chart_3: {e}")
         return JsonResponse({"error": str(e)}, status=500)
 
-
 #suppliers_with_product_count
 def bokeh_line_chart_4(request):
     try:
-        print("Fetching supplier data from repository...")
-        repository = SupplierRepository()
-        queryset = repository.get_suppliers_with_product_count()
-
-        # Отримуємо параметр фільтра
+        # Отримуємо параметри фільтрації з GET-запиту
         min_supplied_products = int(request.GET.get('min_supplied_products', 0))
 
-        data = queryset.values('supplier_id', 'name', 'total_products')
-        df = pd.DataFrame(list(data))
+        # Імітуємо об'єкт request із параметрами
+        mock_request = SimpleNamespace(query_params={"min_supplied_products": min_supplied_products})
 
-        if df.empty:
-            print("No data available in DataFrame")
+        # Викликаємо функцію з PharmacyApp напряму
+        supplier_view_set = SupplierViewSet()
+        response_data = supplier_view_set.suppliers_with_product_count(mock_request)
+
+        # Перевіряємо, чи є дані
+        if "chart_data" not in response_data or not response_data["chart_data"]:
             return JsonResponse({"error": "No data available for line chart"}, status=404)
 
-        # Фільтрація за мінімальною кількістю продуктів
-        df = df[df['total_products'] >= min_supplied_products]
+        # Отримуємо та фільтруємо дані для лінійної діаграми
+        chart_data = response_data["chart_data"]
+        filtered_data = [item for item in chart_data if item["total_products"] >= min_supplied_products]
+        print(f"Filtered data: {filtered_data}")  # Логування для діагностики
 
-        # Конвертація total_products у float для сумісності
-        df['total_products'] = df['total_products'].astype(float)
+        if not filtered_data:
+            return JsonResponse({"error": "No data matches the filter."}, status=404)
 
-        print("Creating line chart...")
+        # Підготовка списків для графіка
+        supplier_names = [item["name"] for item in filtered_data]
+        total_products = [item["total_products"] for item in filtered_data]
+
+        # Підготовка даних для Bokeh
+        source = ColumnDataSource(data=dict(
+            supplier_names=supplier_names,
+            total_products=total_products
+        ))
+
+        # Створення лінійного графіка
         p = figure(
             height=500, width=800,
-            title="Total Products Supplied by Each Supplier",
+            title="Filtered Number of Products Supplied by Suppliers" if min_supplied_products > 0 else "Number of Products Supplied by Suppliers",
             toolbar_location=None,
             tools="hover",
-            tooltips="@name: @total_products Products"
+            tooltips="@supplier_names: @total_products Products"
         )
 
         # Додавання лінії на графік
         p.line(
-            x=list(range(len(df))),
-            y=df['total_products'],
+            x=list(range(len(supplier_names))),
+            y=total_products,
             line_width=2,
             color="blue",
             legend_label="Total Products"
@@ -637,8 +679,8 @@ def bokeh_line_chart_4(request):
 
         # Додавання маркерів
         p.scatter(
-            x=list(range(len(df))),
-            y=df['total_products'],
+            x=list(range(len(supplier_names))),
+            y=total_products,
             size=8,
             color="red",
             legend_label="Total Products"
@@ -646,54 +688,66 @@ def bokeh_line_chart_4(request):
 
         # Налаштування осей
         p.xaxis.axis_label = "Supplier Name"
-        p.xaxis.ticker = list(range(len(df)))
-        p.xaxis.major_label_overrides = {i: name for i, name in enumerate(df['name'])}
+        p.xaxis.ticker = list(range(len(supplier_names)))
+        p.xaxis.major_label_overrides = {i: name for i, name in enumerate(supplier_names)}
         p.yaxis.axis_label = "Total Products"
 
         p.xgrid.grid_line_color = None
         p.legend.location = "top_left"
 
-        print("Serializing chart...")
+        # Серіалізація графіка
         return JsonResponse(json_item(p), safe=False)
 
     except Exception as e:
         print(f"Error in bokeh_line_chart_4: {e}")
         return JsonResponse({"error": str(e)}, status=500)
 
+
 #suppliers_stats
 def bokeh_pie_chart_5(request):
     try:
         print("Fetching supplier stats data from repository...")
 
-        min_products = int(request.GET.get('min_products', 0))  # Новий параметр фільтра
-        print(f"Minimum products filter: {min_products}")
+        # Отримуємо параметр мінімальної кількості продуктів
+        min_products = int(request.GET.get('min_products', 0))
+        print(f"Minimum products filter: {min_products}")  # Логування для діагностики
 
-        repository = SupplierRepository()  # Використовується ваш репозиторій постачальників
-        queryset = repository.get_suppliers_with_product_count()
-        data = list(queryset.values('supplier_id', 'name', 'total_products'))
-        print(f"Fetched data: {data}")
+        # Імітуємо об'єкт request із параметрами
+        mock_request = SimpleNamespace(query_params={"min_products": min_products})
+        supplier_view_set = SupplierViewSet()
+        response_data = supplier_view_set.suppliers_stats(mock_request)
 
-        if not data:
-            print("No data available in queryset")
+        # Перевіряємо, чи є дані
+        if "chart_data" not in response_data or not response_data["chart_data"]:
+            print("No data available in response")
             return JsonResponse({"error": "No data available for pie chart"}, status=404)
 
-        df = pd.DataFrame(data)
-        print(f"DataFrame created: {df}")
+        # Фільтрація даних за мінімальною кількістю продуктів
+        chart_data = response_data["chart_data"]
+        filtered_data = [item for item in chart_data if item["total_products"] >= min_products]
+        print(f"Filtered data: {filtered_data}")  # Логування для діагностики
 
-        # Фільтрація за мінімальною кількістю продуктів
-        df = df[df['total_products'] >= min_products]
-        print(f"Filtered DataFrame: {df}")
-
-        if df.empty:
-            print("Filtered DataFrame is empty")
+        if not filtered_data:
+            print("Filtered data is empty")
             return JsonResponse({"error": "No data matches the filter."}, status=404)
 
-        # Додавання кольорів для графіка
-        palette_size = max(3, len(df))  # Мінімум 3 кольори
-        df['color'] = Category20c[palette_size][:len(df)]
+        # Підготовка даних для Bokeh
+        supplier_names = [item["name"] for item in filtered_data]
+        total_products = [item["total_products"] for item in filtered_data]
+        total_sum = sum(total_products)
+        angles = [prod / total_sum * 2 * pi for prod in total_products]
 
-        # Додавання часток для кругової діаграми
-        df['angle'] = df['total_products'] / df['total_products'].sum() * 2 * pi
+        # Додавання кольорів
+        from bokeh.palettes import Category20c
+        max_colors = len(Category20c)
+        colors = Category20c[min(len(filtered_data), max_colors)]
+
+        source = ColumnDataSource(data=dict(
+            name=supplier_names,
+            total_products=total_products,
+            angle=angles,
+            color=colors[:len(filtered_data)]  # Гарантія, що розмір палітри відповідає кількості даних
+        ))
 
         # Створення кругової діаграми
         p = figure(
@@ -712,7 +766,7 @@ def bokeh_pie_chart_5(request):
             line_color="white",
             fill_color='color',
             legend_field='name',
-            source=df
+            source=source
         )
 
         p.legend.orientation = "vertical"
@@ -721,49 +775,67 @@ def bokeh_pie_chart_5(request):
         p.axis.visible = False
         p.grid.grid_line_color = None
 
+        print("Serializing pie chart...")
         return JsonResponse(json_item(p), safe=False)
 
     except Exception as e:
-        print(f"Error in bokeh_pie_chart_suppliers: {e}")
+        print(f"Error in bokeh_pie_chart_5: {e}")
         return JsonResponse({"error": str(e)}, status=500)
 
 #suppliers_grouped_stats
 def bokeh_area_chart_6(request):
     try:
         print("Fetching grouped supplier stats data from repository...")
-        repository = SupplierRepository()
-        queryset = repository.get_suppliers_with_product_count()
-        data = queryset.values('supplier_id', 'name', 'total_products')
-        print(f"Fetched data: {list(data)}")
 
-        # Перетворення даних у DataFrame
-        df = pd.DataFrame(list(data))
-        if df.empty:
-            print("No data available in DataFrame")
-            return JsonResponse({"error": "No data available for area chart"}, status=404)
-
-        # Отримання параметра фільтрації
+        # Отримуємо параметр мінімальної кількості продуктів
         min_total_products = int(request.GET.get('min_total_products', 0))
         print(f"Minimum total products filter: {min_total_products}")
 
-        # Застосування фільтрації
-        df = df[df['total_products'] >= min_total_products]
+        # Імітуємо об'єкт request із параметрами
+        mock_request = SimpleNamespace(query_params={"min_total_products": min_total_products})
+        supplier_view_set = SupplierViewSet()
+        response_data = supplier_view_set.suppliers_stats(mock_request)
 
-        if df.empty:
-            print("Filtered DataFrame is empty")
+        # Перевіряємо, чи є дані
+        if "chart_data" not in response_data or not response_data["chart_data"]:
+            print("No data available in response")
+            return JsonResponse({"error": "No data available for area chart"}, status=404)
+
+        # Фільтрація даних за мінімальною кількістю продуктів
+        chart_data = response_data["chart_data"]
+        filtered_data = [item for item in chart_data if item["total_products"] >= min_total_products]
+        print(f"Filtered data: {filtered_data}")
+
+        if not filtered_data:
+            print("Filtered data is empty")
             return JsonResponse({"error": "No data matches the filter."}, status=404)
 
-        # Групування по кількості продуктів
-        product_group = df.groupby('total_products').agg(
-            total_suppliers=('supplier_id', 'count'),
-            average_products=('total_products', 'mean')
-        ).reset_index()
+        # Групування даних
+        grouped_data = {}
+        for item in filtered_data:
+            total_products = item["total_products"]
+            if total_products not in grouped_data:
+                grouped_data[total_products] = {"total_suppliers": 0, "total_products_sum": 0}
+            grouped_data[total_products]["total_suppliers"] += 1
+            grouped_data[total_products]["total_products_sum"] += total_products
 
-        product_group = product_group.sort_values(by='total_suppliers', ascending=False)
+        # Перетворення у список для сортування
+        grouped_list = [
+            {
+                "total_products": total_products,
+                "total_suppliers": group["total_suppliers"],
+                "average_products": group["total_products_sum"] / group["total_suppliers"],
+            }
+            for total_products, group in grouped_data.items()
+        ]
 
-        # Перетворення total_products у float для сумісності
-        product_group['total_products'] = product_group['total_products'].astype(float)
-        product_group['total_suppliers'] = product_group['total_suppliers'].astype(float)
+        # Сортування за кількістю постачальників
+        grouped_list = sorted(grouped_list, key=lambda x: x["total_suppliers"], reverse=True)
+        print(f"Grouped data: {grouped_list}")
+
+        # Підготовка даних для Bokeh
+        total_products = [item["total_products"] for item in grouped_list]
+        total_suppliers = [item["total_suppliers"] for item in grouped_list]
 
         # Створення графіка області
         print("Creating area chart...")
@@ -772,22 +844,22 @@ def bokeh_area_chart_6(request):
             title="Suppliers Distribution by Total Products",
             toolbar_location=None,
             tools="hover",
-            tooltips="@total_products: @total_suppliers Suppliers"
+            tooltips="@x: @y Suppliers"
         )
 
         # Додавання області
         p.varea(
-            x=product_group['total_products'],
+            x=total_products,
             y1=0,
-            y2=product_group['total_suppliers'],
+            y2=total_suppliers,
             fill_color="blue",
             fill_alpha=0.5,
         )
 
         # Додавання лінії
         p.line(
-            x=product_group['total_products'],
-            y=product_group['total_suppliers'],
+            x=total_products,
+            y=total_suppliers,
             line_width=2,
             color="blue",
             legend_label="Total Suppliers"
@@ -804,7 +876,7 @@ def bokeh_area_chart_6(request):
         return JsonResponse(json_item(p), safe=False)
 
     except Exception as e:
-        print(f"Error in bokeh_area_chart_suppliers: {e}")
+        print(f"Error in bokeh_area_chart_6: {e}")
         return JsonResponse({"error": str(e)}, status=500)
 
 #--------------------------------------------------------------------------------------------------------------------------------
