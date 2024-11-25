@@ -278,7 +278,7 @@
 
 
         /////////////////////////////
-        document.getElementById('apply-pie-filters').addEventListener('click', function () {
+       document.getElementById('apply-pie-filters').addEventListener('click', function () {
     const minQuantity = document.getElementById('min-quantity').value;
 
     fetch(`/home/dashboardBokeh/bokeh-pie-2/?min_quantity=${minQuantity}`)
@@ -290,14 +290,15 @@
         })
         .then(data => {
             const chartContainer = document.getElementById('bokeh-pie-2');
-            chartContainer.innerHTML = ''; // Очищуємо попередній графік
-            Bokeh.embed.embed_item(data, "bokeh-pie-2");
+            chartContainer.innerHTML = ''; // Видалення старого графіка
+            Bokeh.embed.embed_item(data, "bokeh-pie-2"); // Вбудовування нового графіка
         })
         .catch(error => {
             console.error('Error loading filtered chart:', error);
             document.getElementById('bokeh-pie-2').innerHTML = `<p style="color:red;">Error loading chart: ${error.message}</p>`;
         });
 });
+
 
         document.getElementById('apply-income-filters').addEventListener('click', function () {
     const minIncome = document.getElementById('min-income').value;
