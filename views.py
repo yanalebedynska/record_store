@@ -1,9 +1,11 @@
-from rest_framework import viewsets  #Містить класи для створення наборів виглядів, які поєднують логіку перегляду та запитів.
+from django.db.models import Count
+from rest_framework import viewsets, \
+    status  # Містить класи для створення наборів виглядів, які поєднують логіку перегляду та запитів.
 #для спрощення процесу створення API, забезпечуючи готові методи для обробки запитів CRUD
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.authentication import BasicAuthentication
 
-from .models import ReceiptItem, Product
+from .models import ReceiptItem, Product, Supplier
 from .serializers import (
 EmployeeSerializer, OrderSerializer, CompanySerializer, CustomerSerializer, PharmacySerializer,
 ProductSerializer, ReceiptSerializer, ReceiptItemSerializer, SupplierSerializer, TransactionSerializer,
@@ -16,16 +18,18 @@ from .repositories.employee_repository import EmployeeRepository
 from .repositories.order_repository import OrderRepository
 from .repositories.pharmacy_repository import PharmacyRepository
 from .repositories.product_repository import ProductRepository
-from .repositories.receipt_item_repository import ReceiptItemRepository
 from .repositories.receipt_repository import ReceiptRepository
 from .repositories.supplier_repository import SupplierRepository
 from .repositories.transaction_repository import TransactionRepository
 from .repositories.warehouse_repository import WarehouseRepository
 from .repositories.warehouse_stock_repository import WarehouseStockRepository
+from .repositories.receipt_item_repository import ReceiptItemRepository
 
 import pandas as pd
 from rest_framework.decorators import action
 from rest_framework.response import Response
+
+from .serializers.product_with_orders_serializer import ProductWithOrdersSerializer
 
 
 class BaseViewSet(viewsets.ModelViewSet):
@@ -85,6 +89,14 @@ class CustomerViewSet(BaseViewSet):
     def get_repository(self):
         return CustomerRepository()
 
+    def perform_create(self, serializer):
+        print("Validated data:", serializer.validated_data)
+        repository = CustomerRepository()
+        repository.create(**serializer.validated_data)
+
+    def perform_destroy(self, instance):
+        repository = CustomerRepository()
+        repository.delete_by_id(instance.pk)
 
 class PharmacyViewSet(BaseViewSet):
     serializer_class = PharmacySerializer
@@ -128,23 +140,44 @@ class WarehouseStockViewSet(BaseViewSet):
 
 #------------------------------------------------------------------------------------------------------------
 class ReceiptItemViewSet(BaseViewSet):
-    queryset = ReceiptItem.objects.all()
+    queryset = ReceiptItem.objects.select_related('product').all()  # Завантаження пов'язаних продуктів
     serializer_class = ReceiptItemSerializer
+
+    def perform_destroy(self, instance):
+        repository = ReceiptItemRepository()
+        repository.delete_by_id(instance.pk)
+
+    #--
+    def perform_create(self, serializer):
+        # Отримуємо інстанцію продукту
+        product_id = self.request.data.get('product')  # ID продукту з запиту
+        product_instance = Product.objects.get(product_id=product_id)  # Використовуємо product_id
+
+        # Передаємо інстанцію продукту у serializer.save()
+        serializer.save(product=product_instance)
+    #--
+
+    def list(self, request, *args, **kwargs):
+        queryset = self.get_queryset()
+        serializer = self.get_serializer(queryset, many=True)
+        return Response(serializer.data)
 
     def get_repository(self):
         return ReceiptItemRepository()
 
-    @action(detail=False, methods=['get'], url_path='products-with-order-count')
-    def products_with_order_count(self, request, *args, **kwargs):
-        min_orders = int(request.query_params.get('min_orders', 1))
-        queryset = self.get_repository().get_products_with_order_count(min_orders)
-        data = list(queryset)  # Перетворюємо queryset у список
-        df = pd.DataFrame(data)  # Перетворюємо у DataFrame
+    def get_queryset(self):
+        queryset = super().get_queryset()
+        print("Orders Queryset:", queryset)
+        return queryset
 
-        # Формування даних для відповіді
-        return {
-            "chart_data": df.to_dict(orient='records')  # Дані для графіка
-        }
+    @action(detail=False, methods=['get'], url_path='products-with-order-count')
+    def products_with_order_count(self, request):
+        min_orders = int(request.query_params.get('min_orders', 1))
+        repository = ReceiptItemRepository()
+        products_with_orders = repository.get_products_with_order_count(min_orders=min_orders)
+
+        return Response(products_with_orders)
+
 
     @action(detail=False, methods=['get'], url_path='receiptitems-stats')
     def receiptitems_stats(self, request, *args, **kwargs):
@@ -337,3 +370,37 @@ class SupplierViewSet(BaseViewSet):
         return {
             "by_total_products": grouped_data
         }
+
+
+class ProductsWithOrdersView(BaseViewSet):
+    permission_classes = [IsAuthenticated]
+    serializer_class = ProductWithOrdersSerializer  # Використовуйте відповідний серіалізатор
+
+    def get_repository(self):
+        return ReceiptItemRepository()
+
+    def get(self, request):
+        repository = ReceiptItemRepository()
+        products_with_orders = repository.get_products_with_order_count(min_orders=2)
+
+        return Response(products_with_orders)
+
+    def get_queryset(self):
+        repository = self.get_repository()
+        min_orders = int(self.request.query_params.get('min_orders', 1))
+        return repository.get_products_with_order_count(min_orders)
+
+
+
+
+class PopularSupplierView(BaseViewSet):
+    @action(detail=False, methods=['get'], url_path='popular-supplier')
+    def list(self, request, *args, **kwargs):
+        suppliers = Supplier.objects.annotate(total_products=Count('products')).order_by('-total_products')
+
+        popular_supplier = suppliers.first() if suppliers.exists() else None
+
+        return Response({
+            'popular_supplier': SupplierSerializer(popular_supplier).data if popular_supplier else None,
+            'suppliers': SupplierSerializer(suppliers, many=True).data
+        })
