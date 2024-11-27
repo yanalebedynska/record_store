@@ -1,11 +1,6 @@
 from django.shortcuts import render
 from django.utils import timezone
 
-from pharmacyApp.repositories.product_repository import ProductRepository
-from pharmacyApp.repositories.customer_repository import CustomerRepository
-from pharmacyApp.repositories.receipt_item_repository import ReceiptItemRepository
-from pharmacyApp.repositories.supplier_repository import SupplierRepository
-
 from pharmacyApp.views import ReceiptItemViewSet
 from pharmacyApp.views import SupplierViewSet
 from types import SimpleNamespace      #сімпл дімпл папит сквіш
@@ -35,7 +30,7 @@ def home(request):
 
 
 API_BASE_URL = "http://127.0.0.1:8000/api"
-API_AUTH = ('yana_admin', 'yana2006')  # Логін і пароль для Basic Authentication
+API_AUTH = ('maria_brychko', 'maria08080907')  # Логін і пароль для Basic Authentication
 
 
 def product_list(request):
@@ -317,21 +312,47 @@ def delete_customer(request, customer_id):
 
 
 def object_list(request):
-    products = ProductRepository().get_all()  # Отримуємо всі продукти через репозиторій
-    return render(request, 'object_list.html', {'objects': products})
+    # Надсилаємо GET-запит до API для отримання списку об'єктів (продуктів)
+    response = requests.get(
+        f"{API_BASE_URL}/products/",  # Ендпоінт для отримання списку продуктів
+        auth=API_AUTH  # Аутентифікація
+    )
+
+    if response.status_code == 200:  # Успішне отримання даних
+        objects = response.json()  # Розбираємо JSON у Python-об'єкт
+    else:
+        # У разі помилки, створюємо пустий список і додаємо повідомлення
+        objects = []
+        messages.error(request, 'Failed to fetch object list.')
+
+    # Рендеримо шаблон із отриманими даними
+    return render(request, 'object_list.html', {'objects': objects})
+
 
 
 def delete_object(request, item_id):
     if request.method == 'POST':
         try:
-            product = ProductRepository().get_by_id(item_id)  # Отримуємо продукт через репозиторій
-            if product:
-                ProductRepository.delete(product)  # Видаляємо продукт через репозиторій
+            # Надсилаємо DELETE-запит до API
+            response = requests.delete(
+                f"{API_BASE_URL}/products/{item_id}/",  # Ендпоінт для видалення продукту
+                auth=API_AUTH  # Аутентифікація
+            )
+
+            if response.status_code == 204:  # Код 204 означає успішне видалення
                 messages.success(request, "Product successfully deleted.")
                 return redirect('PharmacyInterface:product_list')
-            else:
+            elif response.status_code == 404:  # Якщо продукт не знайдено
                 messages.error(request, "Product not found.")
                 return JsonResponse({"error": "Product not found."}, status=404)
+            else:
+                # Обробка інших помилок
+                try:
+                    error_message = response.json().get('detail', 'Failed to delete product.')
+                except ValueError:  # Якщо відповідь не JSON
+                    error_message = f"Failed to delete product. Status code: {response.status_code}"
+                messages.error(request, f"Error: {error_message}")
+                return JsonResponse({"error": error_message}, status=response.status_code)
         except Exception as e:
             print("Delete object error:", e)
             return JsonResponse({"error": "Delete object error."}, status=500)
@@ -339,11 +360,28 @@ def delete_object(request, item_id):
 
 
 def get_object(request, item_id):
-    product = ProductRepository().get_by_id(item_id)  # Отримуємо продукт через репозиторій
-    if product:
-        return render(request, 'product_detail.html', {'object': product})
-    else:
-        return render(request, 'error.html', {'message': 'Object not found.'})
+    try:
+        # Надсилаємо GET-запит до API для отримання об'єкта
+        response = requests.get(
+            f"{API_BASE_URL}/products/{item_id}/",  # Ендпоінт для отримання продукту за ID
+            auth=API_AUTH  # Аутентифікація
+        )
+
+        if response.status_code == 200:  # Успішне отримання даних
+            product = response.json()  # Отримуємо дані продукту у вигляді словника
+            return render(request, 'product_detail.html', {'object': product})
+        elif response.status_code == 404:  # Об'єкт не знайдено
+            return render(request, 'error.html', {'message': 'Object not found.'})
+        else:
+            # Обробка інших помилок
+            try:
+                error_message = response.json().get('detail', 'Failed to fetch object.')
+            except ValueError:  # Якщо відповідь не JSON
+                error_message = f"Failed to fetch object. Status code: {response.status_code}"
+            return render(request, 'error.html', {'message': error_message})
+    except Exception as e:
+        print("Get object error:", e)
+        return render(request, 'error.html', {'message': 'An error occurred while fetching the object.'})
 
 
 def popular_supplier_view(request):
@@ -391,23 +429,38 @@ def dashboardPlotly(request):
 #products_with_order_count
 def plotly_bar_chart_1(request):
     try:
-        # Отримуємо параметр min_orders
+        # Отримуємо параметр min_orders із запиту
         min_orders = int(request.GET.get('min_orders', 1))
 
-        # Імітуємо об'єкт request із query_params
-        mock_request = SimpleNamespace(query_params={"min_orders": min_orders})
+        # Надсилаємо GET-запит до API для отримання даних
+        response = requests.get(
+            f"{API_BASE_URL}/receiptitems/products-with-order-count/?min_orders={min_orders}",
+            auth=API_AUTH
+        )
 
-        # Викликаємо функцію з PharmacyApp напряму
-        receipt_item_view_set = ReceiptItemViewSet()
-        data = receipt_item_view_set.products_with_order_count(mock_request)
+        if response.status_code == 200:
+            data = response.json()  # Розбираємо JSON у Python-об'єкт
+        else:
+            # Логування у разі невдалої відповіді
+            print("Error in API response:", response.text)
+            return JsonResponse({"error": "Failed to fetch data from API"}, status=response.status_code)
 
-        if not data["chart_data"]:  # Якщо даних немає
+        # Логування даних для перевірки
+        print("Data from API:", data)
+
+        # Перевіряємо, чи є дані
+        if not data:
             return JsonResponse({"error": "No data available for bar chart"}, status=404)
 
-        # Створення стовпчикового графіка
-        fig = px.bar(data["chart_data"], x='product__name', y='order_count', title='Order Count by Product')
+        # Створюємо стовпчиковий графік
+        fig = px.bar(
+            data,
+            x='product_name',  # Використовуємо назву продукту як X
+            y='order_count',  # Кількість замовлень як Y
+            title='Order Count by Product'
+        )
 
-        # Серіалізація графіка
+        # Перетворюємо графік у JSON для рендерингу на фронтенді
         fig_json = pio.to_json(fig)
         return JsonResponse(fig_json, safe=False)
 
@@ -522,7 +575,7 @@ def plotly_bar_chart_3(request):
         return JsonResponse({"error": str(e)}, status=500)
 
 
-#suppliers_with_product_count
+# suppliers_with_product_count
 def plotly_line_chart_4(request):
     try:
         # Отримуємо параметри фільтрації з GET-запиту
@@ -558,7 +611,7 @@ def plotly_line_chart_4(request):
             x=supplier_names,
             y=total_products,
             title=f'Filtered Number of Products Supplied by Suppliers (Min Products: {min_supplied_products})'
-                  if min_supplied_products > 0 else 'Number of Products Supplied by Suppliers',
+            if min_supplied_products > 0 else 'Number of Products Supplied by Suppliers',
             labels={"x": "Supplier Name", "y": "Total Products"},
             markers=True  # Додавання маркерів на лінії
         )
@@ -668,7 +721,7 @@ def plotly_area_chart_6(request):
             x=total_products,
             y=total_suppliers,
             title=f'Suppliers Count by Total Products (Min Total Products: {min_total_products})'
-                  if min_total_products > 0 else 'Suppliers Count by Total Products',
+            if min_total_products > 0 else 'Suppliers Count by Total Products',
             labels={'x': 'Total Products', 'y': 'Total Suppliers'}
         )
         fig.update_layout(
@@ -686,8 +739,6 @@ def plotly_area_chart_6(request):
         print(f"Error in plotly_area_chart_6: {e}")
         return JsonResponse({"error": str(e)}, status=500)
 
-
-
 #------------------------------------------------------------------------------------------------------------------------
 def dashboardBokeh(request):
     return render(request, 'PharmacyInterface/dashboardBokeh.html')
@@ -699,20 +750,26 @@ def bokeh_bar_chart_1(request):
         # Отримуємо параметр min_orders із запиту
         min_orders = int(request.GET.get('min_orders', 1))
 
-        # Імітуємо об'єкт request із query_params
-        mock_request = SimpleNamespace(query_params={"min_orders": min_orders})
+        # Надсилаємо GET-запит до API для отримання даних
+        response = requests.get(
+            f"{API_BASE_URL}/receiptitems/products-with-order-count/?min_orders={min_orders}",
+            auth=API_AUTH
+        )
 
-        # Викликаємо функцію з PharmacyApp напряму
-        receipt_item_view_set = ReceiptItemViewSet()
-        data = receipt_item_view_set.products_with_order_count(mock_request)
+        if response.status_code == 200:
+            data = response.json()  # Розбираємо JSON-відповідь
+        else:
+            # Логування у разі невдалої відповіді
+            print("Error in API response:", response.text)
+            return JsonResponse({"error": "Failed to fetch data from API"}, status=response.status_code)
 
-        if not data["chart_data"]:  # Якщо даних немає
+        # Перевіряємо, чи є дані
+        if not data:
             return JsonResponse({"error": "No data available for bar chart"}, status=404)
 
         # Дані для побудови графіка
-        chart_data = data["chart_data"]
-        product_names = [item["product__name"] for item in chart_data]
-        order_counts = [item["order_count"] for item in chart_data]
+        product_names = [item["product_name"] for item in data]
+        order_counts = [item["order_count"] for item in data]
 
         # Додавання кольорів для стовпців
         from bokeh.palettes import Category20
@@ -721,7 +778,7 @@ def bokeh_bar_chart_1(request):
 
         # Підготовка даних для Bokeh
         source = ColumnDataSource(data=dict(
-            product__name=product_names,
+            product_name=product_names,
             order_count=order_counts,
             color=colors
         ))
@@ -733,11 +790,11 @@ def bokeh_bar_chart_1(request):
             title="Order Count by Product",
             toolbar_location=None,
             tools="hover",
-            tooltips="@product__name: @order_count"
+            tooltips="@product_name: @order_count"
         )
 
         p.vbar(
-            x='product__name',
+            x='product_name',
             top='order_count',
             width=0.8,
             color='color',
@@ -756,6 +813,7 @@ def bokeh_bar_chart_1(request):
     except Exception as e:
         print(f"Error in bokeh_bar_chart_1: {e}")
         return JsonResponse({"error": str(e)}, status=500)
+
 
 #receiptitems_stats
 def bokeh_pie_chart_2(request):
