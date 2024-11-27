@@ -1,0 +1,143 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Popular Supplier</title>
+    <style>
+        /* Загальні стилі для сторінки */
+        body {
+            font-family: 'Arial', sans-serif;
+            background: linear-gradient(to right, #e6f7ff, #ffe6f2);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            margin: 0;
+            color: #333;
+        }
+
+        /* Контейнер */
+        .container {
+            background-color: rgba(255, 255, 255, 0.9);
+            padding: 40px 40px 80px 40px; /* Додано відступ знизу */
+            border-radius: 15px;
+            box-shadow: 0 6px 12px rgba(0, 0, 0, 0.1);
+            max-width: 800px;
+            width: 90%;
+            text-align: center;
+            position: relative;
+        }
+
+        /* Заголовок */
+        h1 {
+            color: #ff66a3;
+            margin-bottom: 30px;
+        }
+
+        /* Кнопка Back to Home */
+        .back-button {
+            position: absolute;
+            bottom: 20px;
+            left: 20px;
+            padding: 6px 12px;
+            font-size: 12px;
+            color: white;
+            background: linear-gradient(to right, #ff99cc, #ff66b2);
+            text-decoration: none;
+            border-radius: 5px;
+            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.2);
+            transition: background-color 0.3s, transform 0.2s;
+        }
+
+        .back-button:hover {
+            background: linear-gradient(to right, #ff80b3, #ff4d94);
+            transform: scale(1.05);
+        }
+
+        /* Таблиця для Топ 1 постачальника */
+        .top-supplier {
+            background-color: #ffebf2;
+            padding: 20px;
+            margin-bottom: 20px;
+            border: 2px solid #ff99cc;
+            border-radius: 10px;
+            box-shadow: 0 4px 8px rgba(255, 153, 204, 0.4);
+        }
+
+        .top-supplier h2 {
+            color: #ff66a3;
+            margin-bottom: 10px;
+        }
+
+        .top-supplier p {
+            font-size: 18px;
+            margin: 5px 0;
+        }
+
+        /* Таблиця для списку постачальників */
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 20px;
+        }
+
+        th, td {
+            padding: 10px;
+            text-align: left;
+            border-bottom: 1px solid #ddd;
+        }
+
+        th {
+            background-color: #f2f2f2;
+            font-size: 18px;
+        }
+
+        tr:nth-child(even) {
+            background-color: #f9f9f9;
+        }
+
+        tr:hover {
+            background-color: #f1f1f1;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <a href="{% url 'PharmacyInterface:home' %}" class="back-button">Back to Home</a>
+
+        <h1>Top 1 Supplier</h1>
+
+        {% if popular_supplier %}
+        <div class="top-supplier">
+            <h2>{{ popular_supplier.name }}</h2>
+            <p><strong>Total Products:</strong> {{ popular_supplier.total_products }}</p>
+        </div>
+        {% else %}
+        <p>No suppliers found.</p>
+        {% endif %}
+
+        <h2>List of all suppliers:</h2>
+
+        {% if suppliers %}
+        <table>
+            <thead>
+                <tr>
+                    <th>Supplier Name</th>
+                    <th>Total Products</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for supplier in suppliers %}
+                <tr>
+                    <td>{{ supplier.name }}</td>
+                    <td>{{ supplier.total_products }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        {% else %}
+        <p>No suppliers available.</p>
+        {% endif %}
+    </div>
+</body>
+</html>
