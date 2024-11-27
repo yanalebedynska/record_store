@@ -1,339 +1,975 @@
-from rest_framework import viewsets  #Містить класи для створення наборів виглядів, які поєднують логіку перегляду та запитів.
-#для спрощення процесу створення API, забезпечуючи готові методи для обробки запитів CRUD
-from rest_framework.permissions import IsAuthenticated
-from rest_framework.authentication import BasicAuthentication
+from django.shortcuts import render
+from django.utils import timezone
+from django.db.models import Sum, F
 
-from .models import ReceiptItem, Product
-from .serializers import (
-EmployeeSerializer, OrderSerializer, CompanySerializer, CustomerSerializer, PharmacySerializer,
-ProductSerializer, ReceiptSerializer, ReceiptItemSerializer, SupplierSerializer, TransactionSerializer,
-WarehouseSerializer, WarehouseStockSerializer
-)
+from pharmacyApp.repositories.product_repository import ProductRepository
+from pharmacyApp.repositories.customer_repository import CustomerRepository
+from pharmacyApp.repositories.receipt_item_repository import ReceiptItemRepository
+from pharmacyApp.repositories.supplier_repository import SupplierRepository
 
-from .repositories.company_repository import CompanyRepository
-from .repositories.customer_repository import CustomerRepository
-from .repositories.employee_repository import EmployeeRepository
-from .repositories.order_repository import OrderRepository
-from .repositories.pharmacy_repository import PharmacyRepository
-from .repositories.product_repository import ProductRepository
-from .repositories.receipt_item_repository import ReceiptItemRepository
-from .repositories.receipt_repository import ReceiptRepository
-from .repositories.supplier_repository import SupplierRepository
-from .repositories.transaction_repository import TransactionRepository
-from .repositories.warehouse_repository import WarehouseRepository
-from .repositories.warehouse_stock_repository import WarehouseStockRepository
+from pharmacyApp.views import ReceiptItemViewSet
+from pharmacyApp.views import SupplierViewSet
+from types import SimpleNamespace      #сімпл дімпл папит сквіш
 
+from django.shortcuts import redirect
+from .forms import ProductForm , CustomerForm
+from django.http import JsonResponse
+from django.contrib import messages
+
+from math import pi
 import pandas as pd
-from rest_framework.decorators import action
-from rest_framework.response import Response
+
+import plotly.express as px
+import plotly.io as pio
+
+from bokeh.plotting import figure
+from bokeh.embed import json_item
+from bokeh.transform import cumsum
+from bokeh.palettes import Category20c
+from bokeh.models import ColumnDataSource
+import requests
+from decimal import Decimal
+from datetime import date
+from pharmacyApp.serializers import SupplierSerializer
+from pharmacyApp.models import Supplier
+
+def home(request):
+    return render(request, 'PharmacyInterface/home.html')
 
 
-class BaseViewSet(viewsets.ModelViewSet):
-    authentication_classes = [BasicAuthentication]
-    permission_classes = [IsAuthenticated]
+API_BASE_URL = "http://127.0.0.1:8000/api"
+API_AUTH = ('n', 'zalupa')  # Логін і пароль для Basic Authentication
 
-    def get_queryset(self):
-        repository = self.get_repository()
-        return repository.read_all()
+def product_list(request):
+    response = requests.get(f"{API_BASE_URL}/products/", auth=API_AUTH)
+    if response.status_code == 200:
+        products = response.json()  # Має повертати список словників із даними продуктів
+        return render(request, 'PharmacyInterface/product_list.html', {'products': products})
+    else:
+        return render(request, 'PharmacyInterface/error.html', {'message': 'Failed to fetch product list.'})
 
-    def perform_create(self, serializer):
-        repository = self.get_repository()
-        repository.create(**serializer.validated_data)
-
-    def perform_update(self, serializer):
-        repository = self.get_repository()
-        repository.update(serializer.instance.pk, **serializer.validated_data)
-
-    def perform_destroy(self, instance):
-        repository = self.get_repository()
-        repository.delete_by_id(instance.pk)
-
-    def get_repository(self):
-        raise NotImplementedError("You should implement this method.")
+def product_detail(request, pk):
+    response = requests.get(f"{API_BASE_URL}/products/{pk}/", auth=API_AUTH)
+    if response.status_code == 200:
+        product = response.json()  # Отримуємо дані продукту у вигляді словника
+        return render(request, 'PharmacyInterface/product_detail.html', {'object': product})
+    else:
+        return render(request, 'PharmacyInterface/error.html', {'message': 'Failed to fetch product details.'})
 
 
+def product_create(request):
+    """
+    Створення нового продукту через форму та API.
+    """
+    if request.method == 'POST':
+        form = ProductForm(request.POST)
+        if form.is_valid():
+            data = form.cleaned_data
 
-class EmployeeViewSet(BaseViewSet):
-    serializer_class = EmployeeSerializer
+            # Значення за замовчуванням для кількості в запасі
+            if data.get('quantity_in_stock') is None:
+                data['quantity_in_stock'] = 0
 
-    def get_repository(self):
-        return EmployeeRepository()
+            # Серіалізація об'єктів, таких як Supplier
+            if 'supplier' in data and isinstance(data['supplier'], Supplier):
+                supplier = data['supplier']
+                supplier_serializer = SupplierSerializer(supplier)
+                data['supplier'] = supplier_serializer.data  # Замінюємо на серіалізовані дані
 
-    @action(detail=False, methods=['get'])
-    def report_avg_salary(self, request, *args, **kwargs):
-        average_salary = self.get_repository().get_average_salary()
-        return Response({"average_salary": average_salary})
+            # Серіалізація складних типів даних
+            for key, value in data.items():
+                if isinstance(value, Decimal):  # Перетворюємо Decimal у float
+                    data[key] = float(value)
+                elif isinstance(value, date):  # Перетворюємо date у ISO-формат
+                    data[key] = value.isoformat()
+                elif hasattr(value, 'id'):  # Якщо це об'єкт із полем 'id' (наприклад, інші моделі)
+                    data[key] = value.id
+                elif isinstance(value, (list, tuple)) and all(hasattr(item, 'id') for item in value):
+                    # Для списків об'єктів з ID (наприклад, ManyToMany)
+                    data[key] = [item.id for item in value]
 
+            # Надсилаємо POST-запит до API
+            try:
+                response = requests.post(
+                    f"{API_BASE_URL}/products/",
+                    json=data,  # Передаємо дані у форматі JSON
+                    auth=API_AUTH  # Аутентифікація
+                )
 
-class OrderViewSet(BaseViewSet):
-    serializer_class = OrderSerializer
+                if response.status_code == 201:  # Код 201 означає успішне створення
+                    messages.success(request, "Product created successfully!")
+                    return redirect('PharmacyInterface:product_list')
+                else:
+                    # Обробка помилок API
+                    try:
+                        error_details = response.json()  # Отримуємо повідомлення про помилку
+                    except ValueError:
+                        error_details = {"error": "Unexpected response from API"}
+                    messages.error(request, f"Failed to create product: {error_details}")
+            except requests.RequestException as e:
+                messages.error(request, f"An error occurred while creating the product: {str(e)}")
+        else:
+            messages.error(request, "Invalid form data.")
+    else:
+        form = ProductForm()
 
-    def get_repository(self):
-        return OrderRepository()
+    return render(request, 'PharmacyInterface/product_form.html', {'form': form})
+def product_update(request, pk):
+    # Отримуємо інформацію про продукт через API
+    response = requests.get(f"{API_BASE_URL}/products/{pk}/", auth=API_AUTH)
+    if response.status_code == 200:
+        try:
+            product = response.json()  # Отримуємо дані продукту у вигляді словника
+        except requests.exceptions.JSONDecodeError:
+            return render(request, 'PharmacyInterface/error.html', {'message': 'Invalid response from API.'})
+    else:
+        return render(request, 'PharmacyInterface/error.html', {'message': 'Failed to fetch product details.'})
 
+    if request.method == 'POST':
+        form = ProductForm(request.POST)
+        if form.is_valid():
+            data = form.cleaned_data
 
-class CompanyViewSet(BaseViewSet):
-    serializer_class = CompanySerializer
-
-    def get_repository(self):
-        return CompanyRepository()
-
-
-class CustomerViewSet(BaseViewSet):
-    serializer_class = CustomerSerializer
-
-    def get_repository(self):
-        return CustomerRepository()
-
-
-class PharmacyViewSet(BaseViewSet):
-    serializer_class = PharmacySerializer
-
-    def get_repository(self):
-        return PharmacyRepository()
-
-
-class ProductViewSet(BaseViewSet):
-    queryset = Product.objects.all()
-    serializer_class = ProductSerializer
-
-    def get_repository(self):
-        return ProductRepository()
-
-
-class ReceiptViewSet(BaseViewSet):
-    serializer_class = ReceiptSerializer
-
-    def get_repository(self):
-        return ReceiptRepository()
-
-class TransactionViewSet(BaseViewSet):
-    serializer_class = TransactionSerializer
-
-    def get_repository(self):
-        return TransactionRepository()
-
-class WarehouseViewSet(BaseViewSet):
-    serializer_class = WarehouseSerializer
-
-    def get_repository(self):
-        return WarehouseRepository()
-
-
-class WarehouseStockViewSet(BaseViewSet):
-    serializer_class = WarehouseStockSerializer
-
-    def get_repository(self):
-        return WarehouseStockRepository()
-
-#------------------------------------------------------------------------------------------------------------
-class ReceiptItemViewSet(BaseViewSet):
-    queryset = ReceiptItem.objects.all()
-    serializer_class = ReceiptItemSerializer
-
-    def get_repository(self):
-        return ReceiptItemRepository()
-
-    @action(detail=False, methods=['get'], url_path='products-with-order-count')
-    def products_with_order_count(self, request, *args, **kwargs):
-        min_orders = int(request.query_params.get('min_orders', 1))
-        queryset = self.get_repository().get_products_with_order_count(min_orders)
-        data = list(queryset)  # Перетворюємо queryset у список
-        df = pd.DataFrame(data)  # Перетворюємо у DataFrame
-
-        # Формування даних для відповіді
-        return {
-            "chart_data": df.to_dict(orient='records')  # Дані для графіка
-        }
-
-    @action(detail=False, methods=['get'], url_path='receiptitems-stats')
-    def receiptitems_stats(self, request, *args, **kwargs):
-        """
-        Custom endpoint to retrieve statistical analysis for receipt items' data.
-        """
-        queryset = self.get_repository().get_all()  # Отримуємо всі дані через репозиторій
-        data = list(queryset.values('receipt_item_id', 'quantity', 'product__price'))  # Обираємо потрібні поля
-
-        # Перевірка, чи є дані
-        if not data:
-            return Response({
-                "chart_data": [],  # Повертаємо порожній список, якщо даних немає
-                "message": "No data available for statistical analysis."
-            })
-
-        # Перетворюємо дані у pandas DataFrame
-        df = pd.DataFrame(data)
-
-        # Перевіряємо, чи є необхідні стовпці
-        if 'quantity' not in df.columns or 'product__price' not in df.columns:
-            return Response({
-                "chart_data": [],
-                "message": "Required columns are missing."
-            })
-
-        # Групування для графіка
-        df_grouped = df.groupby('receipt_item_id', as_index=False).sum()
-
-        # Обчислення статистики
-        stats = {
-            "quantity": {
-                "mean": df['quantity'].mean(),
-                "median": df['quantity'].median(),
-                "min": df['quantity'].min(),
-                "max": df['quantity'].max()
-            },
-            "price": {
-                "mean": df['product__price'].mean(),
-                "median": df['product__price'].median(),
-                "min": df['product__price'].min(),
-                "max": df['product__price'].max()
-            }
-        }
-
-        # Формування даних для відповіді
-        return {
-            "chart_data": df_grouped.to_dict(orient='records'),
-            "stats": stats
-        }
-
-    @action(detail=False, methods=['get'], url_path='receiptitems-grouped-stats')
-    def receiptitems_grouped_stats(self, request, *args, **kwargs):
-        """
-        Custom endpoint to group and aggregate receipt items data.
-        Aggregates data by product categories and days.
-        """
-        queryset = self.get_repository().get_all()
-        data = queryset.values('product__category', 'order_date', 'quantity', 'product__price')
-        df = pd.DataFrame(list(data))
-
-        # Перевірка, чи є дані
-        if df.empty:
-            return {
-                "by_category": [],
-                "by_day": [],
-                "message": "No data available for grouped analysis."
+            # Перетворення даних для JSON
+            data = {
+                key: (
+                    float(value) if isinstance(value, Decimal) else
+                    value.isoformat() if isinstance(value, date) else
+                    value.supplier_id if key == 'supplier' and hasattr(value, 'supplier_id') else
+                    value
+                )
+                for key, value in data.items()
             }
 
-        # Перетворення `order_date` у формат дати
-        df['order_date'] = pd.to_datetime(df['order_date'], errors='coerce')
-        df = df.dropna(subset=['order_date'])  # Видаляємо рядки з некоректною датою
+            # Відправляємо PUT-запит до API
+            update_response = requests.put(
+                f"{API_BASE_URL}/products/{pk}/",
+                json=data,  # Передаємо дані у форматі JSON
+                auth=API_AUTH
+            )
 
-        # Додавання нового стовпця з загальною вартістю
-        df['total_income'] = df['quantity'] * df['product__price']
+            if update_response.status_code == 200:
+                return redirect('PharmacyInterface:product_detail', pk=pk)
+            else:
+                try:
+                    error_details = update_response.json()
+                except requests.exceptions.JSONDecodeError:
+                    error_details = "API returned an invalid response."
+                return render(request, 'PharmacyInterface/error.html', {
+                    'message': 'Failed to update product.',
+                    'details': error_details
+                })
 
-        # Групування по днях
-        day_group = df.groupby(df['order_date'].dt.strftime('%Y-%m-%d')).agg(
-            total_income=('total_income', 'sum'),
-            total_quantity=('quantity', 'sum')
-        ).reset_index()
+    else:
+        form = ProductForm(initial=product)  # Передаємо початкові дані продукту в форму
 
-        # Перейменовуємо колонку групування на "day"
-        day_group.rename(columns={"order_date": "day"}, inplace=True)
-
-        # Формування результату
-        return {
-            "by_day": day_group.to_dict(orient='records')
-        }
+    return render(request, 'PharmacyInterface/product_form.html', {'form': form})
 
 
-class SupplierViewSet(BaseViewSet):
-    serializer_class = SupplierSerializer
+def receipt_item(request):
 
-    def get_repository(self):
-        return SupplierRepository()
+    response = requests.get(f"{API_BASE_URL}/products/", auth=API_AUTH)
+    if response.status_code == 200:
+        products = response.json()  # Отримуємо список продуктів у вигляді словників
+        return render(request, 'PharmacyInterface/receipt_item.html', {'products': products})
+    else:
+        return render(request, 'PharmacyInterface/error.html', {'message': 'Failed to fetch product list for receipt.'})
 
-    @action(detail=False, methods=['get'], url_path='suppliers-with-product-count')
-    def suppliers_with_product_count(self, request, *args, **kwargs):
-        # Отримуємо дані через репозиторій
-        queryset = self.get_repository().get_suppliers_with_product_count()
+def submit_order(request):
+    if request.method == 'POST':
+        product_id = request.POST.get('product')
+        quantity = int(request.POST.get('quantity'))
+        product = ProductRepository().get_by_id(product_id)
 
-        # Приведення queryset до списку словників
-        data = list(queryset.values('name', 'total_products'))
+        if quantity > product.quantity_in_stock:
+            messages.error(request, "Not enough product in stock")
+            return render(request, 'PharmacyInterface/receipt_item.html', {'products': ProductRepository().get_all()})
 
-        # Перевірка, чи є дані
-        if not data:
-            return {
-                "chart_data": []
-            }
+        ReceiptItemRepository().create({'product': product, 'quantity': quantity, 'order_date': timezone.now()})
 
-        # Повертаємо дані
-        return {
-            "chart_data": data  # Дані у вигляді списку словників
-        }
+        product_data = {'quantity_in_stock': product.quantity_in_stock - quantity}
+        ProductRepository.update(product, product_data)
 
-    @action(detail=False, methods=['get'], url_path='suppliers-stats')
-    def suppliers_stats(self, request, *args, **kwargs):
-        """
-        Custom endpoint to retrieve statistical analysis for suppliers' data.
-        """
-        queryset = self.get_repository().get_suppliers_with_product_count()
-        data = list(queryset.values('supplier_id', 'name', 'total_products'))
+        messages.success(request, 'Order successfully added to order list.')
+        return redirect('PharmacyInterface:receipt_item')
 
-        # Перевірка, чи є дані
-        if not data:
-            return {
-                "chart_data": [],
-                "message": "No data available for statistical analysis."
-            }
+    return redirect('PharmacyInterface:home')
 
-        # Перетворення в pandas DataFrame
-        df = pd.DataFrame(data)
 
-        # Перевірка колонок
-        if 'total_products' not in df.columns:
-            return {
-                "chart_data": [],
-                "message": "Required columns are missing."
-            }
+def order_list(request):
+    response = requests.get(f"{API_BASE_URL}/orders/", auth=API_AUTH)
+    if response.status_code == 200:
+        orders = response.json()  # Отримуємо список замовлень у вигляді словників
+        return render(request, 'PharmacyInterface/order_list.html', {'orders': orders})
+    else:
+        return render(request, 'PharmacyInterface/error.html', {'message': 'Failed to fetch order list.'})
 
-        # Групування для графіка
-        df_grouped = df.groupby('supplier_id', as_index=False).sum()
+def delete_order(request, order_id):
+    order = ReceiptItemRepository().get_by_id(order_id)
+    ReceiptItemRepository.delete(order)
+    messages.success(request, 'Order successfully deleted.')
+    return redirect('PharmacyInterface:order_list')
 
-        # Обчислення статистики
-        stats = {
-            "total_products": {
-                "mean": df['total_products'].mean(),
-                "median": df['total_products'].median(),
-                "min": df['total_products'].min(),
-                "max": df['total_products'].max()
-            }
-        }
+def add_customer(request):
+    if request.method == 'POST':
+        form = CustomerForm(request.POST)
+        if form.is_valid():
+            CustomerRepository().create(form.cleaned_data)
+            return redirect('PharmacyInterface:home')
+    else:
+        form = CustomerForm()
+    return render(request, 'PharmacyInterface/customer_form.html', {'form': form})
 
-        # Формування даних для відповіді
-        return {
-            "chart_data": df_grouped.to_dict(orient='records'),
-            "stats": stats
-        }
 
-    @action(detail=False, methods=['get'], url_path='suppliers-grouped-stats')
-    def suppliers_grouped_stats(self, request, *args, **kwargs):
-        """
-        Custom endpoint to group and aggregate suppliers' data.
-        Aggregates data by total products.
-        """
-        queryset = self.get_repository().get_suppliers_with_product_count()
-        data = list(queryset.values('supplier_id', 'name', 'total_products'))
+def customer_list(request):
+    customers = CustomerRepository().get_all()
+    return render(request, 'PharmacyInterface/customer_list.html', {'customers': customers})
 
-        # Перевірка, чи є дані
-        if not data:
-            return {
-                "by_total_products": [],
-                "message": "No data available for grouped analysis."
-            }
+def delete_customer(request, customer_id):
+    customer = CustomerRepository().get_by_id(customer_id)
+    CustomerRepository.delete(customer)
+    messages.success(request, 'Customer successfully deleted.')
+    return redirect('PharmacyInterface:customer_list')
 
-        # Групування по кількості продуктів
-        product_group = {}
-        for item in data:
+
+def object_list(request):
+    """
+    Отримує список об'єктів через ProductRepository.
+    """
+    products = ProductRepository().get_all()  # Отримуємо всі продукти через репозиторій
+    return render(request, 'object_list.html', {'objects': products})
+
+
+def delete_object(request, item_id):
+    """
+    Видаляє об'єкт через ProductRepository.
+    """
+    if request.method == 'POST':
+        try:
+            product = ProductRepository().get_by_id(item_id)  # Отримуємо продукт через репозиторій
+            if product:
+                ProductRepository.delete(product)  # Видаляємо продукт через репозиторій
+                messages.success(request, "Product successfully deleted.")
+                return redirect('PharmacyInterface:product_list')
+            else:
+                messages.error(request, "Product not found.")
+                return JsonResponse({"error": "Product not found."}, status=404)
+        except Exception as e:
+            print("Delete object error:", e)
+            return JsonResponse({"error": "Delete object error."}, status=500)
+    return JsonResponse({"error": "Invalid request method."}, status=405)
+
+
+def get_object(request, item_id):
+    """
+    Отримує конкретний об'єкт через ProductRepository.
+    """
+    product = ProductRepository().get_by_id(item_id)  # Отримуємо продукт через репозиторій
+    if product:
+        return render(request, 'product_detail.html', {'object': product})
+    else:
+        return render(request, 'error.html', {'message': 'Object not found.'})
+
+
+def popular_supplier_view(request):
+    repository = SupplierRepository()
+
+    suppliers = repository.get_suppliers_with_product_count()
+
+    popular_supplier = suppliers[0] if suppliers else None
+
+    return render(request, 'PharmacyInterface/popular_supplier.html', {
+        'popular_supplier': popular_supplier,
+        'suppliers': suppliers
+    })
+
+
+def products_with_orders_view(request):
+    repository = ReceiptItemRepository()
+    products_with_orders = repository.get_products_with_order_count(min_orders=2)
+    return render(request, 'PharmacyInterface/products_with_orders.html', {
+        'products_with_orders': products_with_orders
+    })
+
+
+
+#--------------------------------------------------------------------------------------------------------------
+def dashboardPlotly(request):
+    return render(request, 'PharmacyInterface/dashboardPlotly.html')
+
+
+#products_with_order_count
+def plotly_bar_chart_1(request):
+    try:
+        # Отримуємо параметр min_orders
+        min_orders = int(request.GET.get('min_orders', 1))
+
+        # Імітуємо об'єкт request із query_params
+        mock_request = SimpleNamespace(query_params={"min_orders": min_orders})
+
+        # Викликаємо функцію з PharmacyApp напряму
+        receipt_item_view_set = ReceiptItemViewSet()
+        data = receipt_item_view_set.products_with_order_count(mock_request)
+
+        if not data["chart_data"]:  # Якщо даних немає
+            return JsonResponse({"error": "No data available for bar chart"}, status=404)
+
+        # Створення стовпчикового графіка
+        fig = px.bar(data["chart_data"], x='product__name', y='order_count', title='Order Count by Product')
+
+        # Серіалізація графіка
+        fig_json = pio.to_json(fig)
+        return JsonResponse(fig_json, safe=False)
+
+    except Exception as e:
+        # Логування помилки
+        print(f"Error in plotly_bar_chart: {e}")
+        return JsonResponse({"error": str(e)}, status=500)
+
+
+#receiptitems_stats
+def plotly_pie_chart_2(request):
+    try:
+        # Імітуємо об'єкт request
+        mock_request = SimpleNamespace(query_params={})
+
+        # Викликаємо функцію з PharmacyApp напряму
+        receipt_item_view_set = ReceiptItemViewSet()
+        response_data = receipt_item_view_set.receiptitems_stats(mock_request)
+
+        # Перевіряємо, чи є ключ 'chart_data'
+        if "chart_data" not in response_data or not response_data["chart_data"]:
+            return JsonResponse({"error": "No data available for pie chart"}, status=404)
+
+        # Створення кругової діаграми
+        fig = px.pie(
+            response_data["chart_data"],
+            names='receipt_item_id',
+            values='quantity',
+            title='Quantity Distribution by Receipt Items'
+        )
+
+        # Серіалізація графіка
+        fig_json = pio.to_json(fig)
+        return JsonResponse(fig_json, safe=False)
+
+    except Exception as e:
+        # Логування помилки
+        print(f"Error in plotly_pie_chart_2: {e}")
+        return JsonResponse({"error": str(e)}, status=500)
+
+
+#receiptitems_grouped_stats
+def plotly_bar_chart_3(request):
+    try:
+        # Імітуємо об'єкт request
+        mock_request = SimpleNamespace(query_params={})
+
+        # Викликаємо функцію з PharmacyApp напряму
+        receipt_item_view_set = ReceiptItemViewSet()
+        response_data = receipt_item_view_set.receiptitems_grouped_stats(mock_request)
+
+        # Перевіряємо, чи є дані
+        if "by_day" not in response_data or not response_data["by_day"]:
+            return JsonResponse({"error": "No data available for bar chart"}, status=404)
+
+        # Перетворюємо дані
+        df = pd.DataFrame(response_data["by_day"])
+        df['day'] = pd.to_datetime(df['day'], errors='coerce')  # Перетворення у формат datetime
+
+        # Створення стовпчастого графіка
+        fig = px.bar(
+            df,
+            x='day',  # Використання днів для осі X
+            y='total_income',
+            title='Daily Total Income',
+            text='total_income'
+        )
+        fig.update_layout(
+            xaxis_title='Day',
+            yaxis_title='Total Income',
+            xaxis=dict(type='date', tickformat='%Y-%m-%d'),  # Формат осі X
+            uniformtext_minsize=8,
+            uniformtext_mode='hide'
+        )
+
+        # Серіалізація графіка
+        fig_json = pio.to_json(fig)
+        return JsonResponse(fig_json, safe=False)
+
+    except Exception as e:
+        print(f"Error in plotly_bar_chart_3: {e}")
+        return JsonResponse({"error": str(e)}, status=500)
+
+
+#suppliers_with_product_count
+def plotly_line_chart_4(request):
+    try:
+        # Імітуємо об'єкт request
+        mock_request = SimpleNamespace(query_params={})
+
+        # Викликаємо функцію з PharmacyApp напряму
+        supplier_view_set = SupplierViewSet()
+        response_data = supplier_view_set.suppliers_with_product_count(mock_request)
+
+        # Перевіряємо, чи є дані
+        if "chart_data" not in response_data or not response_data["chart_data"]:
+            return JsonResponse({"error": "No data available for line chart"}, status=404)
+
+        # Створення лінійної діаграми
+        fig = px.line(
+            response_data["chart_data"],
+            x='name',  # Ім'я постачальника
+            y='total_products',  # Кількість продуктів
+            title='Number of Products Supplied by Suppliers',
+            markers=True  # Додавання маркерів на лінії
+        )
+        fig.update_layout(
+            xaxis_title='Supplier Name',
+            yaxis_title='Total Products',
+            xaxis=dict(tickangle=-45)  # Нахил підписів на осі X
+        )
+
+        # Серіалізація графіка
+        fig_json = pio.to_json(fig)
+        return JsonResponse(fig_json, safe=False)
+
+    except Exception as e:
+        print(f"Error in plotly_line_chart_4: {e}")
+        return JsonResponse({"error": str(e)}, status=500)
+
+
+# suppliers_stats
+def plotly_pie_chart_5(request):
+    try:
+        # Імітуємо об'єкт request
+        mock_request = SimpleNamespace(query_params={})
+
+        # Викликаємо функцію з PharmacyApp напряму
+        supplier_view_set = SupplierViewSet()
+        response_data = supplier_view_set.suppliers_stats(mock_request)
+
+        # Перевіряємо, чи є ключ 'chart_data'
+        if "chart_data" not in response_data or not response_data["chart_data"]:
+            return JsonResponse({"error": "No data available for pie chart"}, status=404)
+
+        # Створення кругової діаграми
+        fig = px.pie(
+            response_data["chart_data"],
+            names='name',  # Використовуємо назву постачальника для підписів
+            values='total_products',  # Загальна кількість продуктів
+            title='Distribution of Total Products by Suppliers'
+        )
+
+        # Серіалізація графіка
+        fig_json = pio.to_json(fig)
+        return JsonResponse(fig_json, safe=False)
+
+    except Exception as e:
+        # Логування помилки
+        print(f"Error in plotly_pie_chart_5: {e}")
+        return JsonResponse({"error": str(e)}, status=500)
+
+
+def plotly_area_chart_6(request):
+    try:
+        # Імітуємо об'єкт request
+        mock_request = SimpleNamespace(query_params={})
+
+        # Викликаємо функцію з PharmacyApp напряму
+        supplier_view_set = SupplierViewSet()
+        response_data = supplier_view_set.suppliers_grouped_stats(mock_request)
+
+        # Перевіряємо, чи є ключ 'by_total_products'
+        if "by_total_products" not in response_data or not response_data["by_total_products"]:
+            return JsonResponse({"error": "No data available for area chart"}, status=404)
+
+        # Створення графіка зони
+        fig = px.area(
+            response_data["by_total_products"],
+            x='total_products',
+            y='total_suppliers',
+            title='Suppliers Count by Total Products',
+            labels={'total_products': 'Total Products', 'total_suppliers': 'Total Suppliers'}
+        )
+        fig.update_layout(
+            xaxis_title='Total Products',
+            yaxis_title='Number of Suppliers',
+            template='plotly_white'
+        )
+
+        # Серіалізація графіка
+        fig_json = pio.to_json(fig)
+        return JsonResponse(fig_json, safe=False)
+
+    except Exception as e:
+        # Логування помилки
+        print(f"Error in plotly_area_chart_6: {e}")
+        return JsonResponse({"error": str(e)}, status=500)
+
+
+#------------------------------------------------------------------------------------------------------------------------
+def dashboardBokeh(request):
+    return render(request, 'PharmacyInterface/dashboardBokeh.html')
+
+
+#products_with_order_count
+def bokeh_bar_chart_1(request):
+    try:
+        # Отримуємо параметр min_orders із запиту
+        min_orders = int(request.GET.get('min_orders', 1))
+
+        # Імітуємо об'єкт request із query_params
+        mock_request = SimpleNamespace(query_params={"min_orders": min_orders})
+
+        # Викликаємо функцію з PharmacyApp напряму
+        receipt_item_view_set = ReceiptItemViewSet()
+        data = receipt_item_view_set.products_with_order_count(mock_request)
+
+        if not data["chart_data"]:  # Якщо даних немає
+            return JsonResponse({"error": "No data available for bar chart"}, status=404)
+
+        # Дані для побудови графіка
+        chart_data = data["chart_data"]
+        product_names = [item["product__name"] for item in chart_data]
+        order_counts = [item["order_count"] for item in chart_data]
+
+        # Додавання кольорів для стовпців
+        from bokeh.palettes import Category20
+        palette = Category20[max(3, len(product_names))]  # Динамічний вибір кольорів
+        colors = [palette[i % len(palette)] for i in range(len(product_names))]
+
+        # Підготовка даних для Bokeh
+        source = ColumnDataSource(data=dict(
+            product__name=product_names,
+            order_count=order_counts,
+            color=colors
+        ))
+
+        # Створення стовпчастої діаграми
+        p = figure(
+            x_range=product_names,
+            height=500, width=800,
+            title="Order Count by Product",
+            toolbar_location=None,
+            tools="hover",
+            tooltips="@product__name: @order_count"
+        )
+
+        p.vbar(
+            x='product__name',
+            top='order_count',
+            width=0.8,
+            color='color',
+            source=source
+        )
+
+        p.xgrid.grid_line_color = None
+        p.y_range.start = 0
+        p.xaxis.axis_label = "Products"
+        p.yaxis.axis_label = "Order Count"
+        p.xaxis.major_label_orientation = 0.8
+
+        # Серіалізація графіка
+        return JsonResponse(json_item(p), safe=False)
+
+    except Exception as e:
+        print(f"Error in bokeh_bar_chart_1: {e}")
+        return JsonResponse({"error": str(e)}, status=500)
+
+#receiptitems_stats
+def bokeh_pie_chart_2(request):
+    try:
+        # Отримання параметра фільтрації
+        min_quantity = int(request.GET.get('min_quantity', 1))
+        print(f"Filtering with min_quantity: {min_quantity}")  # Діагностика
+
+        # Імітуємо запит із параметрами
+        mock_request = SimpleNamespace(query_params={"min_quantity": min_quantity})
+        receipt_item_view_set = ReceiptItemViewSet()
+        response_data = receipt_item_view_set.receiptitems_stats(mock_request)
+
+        # Перевіряємо наявність даних
+        if "chart_data" not in response_data or not response_data["chart_data"]:
+            return JsonResponse({"error": "No data available for pie chart"}, status=404)
+
+        # Дані для кругової діаграми
+        chart_data = response_data["chart_data"]
+        filtered_data = [item for item in chart_data if item["quantity"] >= min_quantity]
+        print(f"Filtered data: {filtered_data}")  # Діагностика
+
+        if not filtered_data:
+            return JsonResponse({"error": "No data matches the filter."}, status=404)
+
+        # Підготовка даних для графіка
+        receipt_items = [item["receipt_item_id"] for item in filtered_data]
+        quantities = [item["quantity"] for item in filtered_data]
+        total_quantity = sum(quantities)
+        angles = [q / total_quantity * 2 * pi for q in quantities]
+
+        # Додавання кольорів
+        from bokeh.palettes import Category20c
+        colors = Category20c[len(receipt_items)]
+
+        # Формування даних для Bokeh
+        source = ColumnDataSource(data=dict(
+            receipt_item_id=receipt_items,
+            quantity=quantities,
+            angle=angles,
+            color=colors
+        ))
+
+        # Створення графіка
+        p = figure(
+            height=500, width=500,
+            title="Filtered Quantity Distribution by Receipt Items",
+            toolbar_location=None,
+            tools="hover",
+            tooltips="@receipt_item_id: @quantity", x_range=(-0.5, 1.0)
+        )
+
+        p.wedge(
+            x=0, y=1, radius=0.4,
+            start_angle=cumsum('angle', include_zero=True),
+            end_angle=cumsum('angle'),
+            line_color="white", fill_color='color',
+            legend_field='receipt_item_id', source=source
+        )
+
+        p.axis.axis_label = None
+        p.axis.visible = False
+        p.grid.grid_line_color = None
+
+        # Серіалізація графіка
+        return JsonResponse(json_item(p), safe=False)
+
+    except Exception as e:
+        print(f"Error in bokeh_pie_chart_2: {e}")
+        return JsonResponse({"error": str(e)}, status=500)
+
+
+#receiptitems_grouped_stats
+def bokeh_bar_chart_3(request):
+    try:
+        # Отримуємо параметри фільтрації з GET-запиту
+        min_income = float(request.GET.get('min_income', 0))
+        category = request.GET.get('category', None)  # Фільтр за категорією, якщо задано
+
+        # Імітуємо об'єкт request із параметрами
+        mock_request = SimpleNamespace(query_params={"min_income": min_income, "category": category})
+        receipt_item_view_set = ReceiptItemViewSet()
+        response_data = receipt_item_view_set.receiptitems_grouped_stats(mock_request)
+
+        # Перевіряємо, чи є дані
+        if "by_day" not in response_data or not response_data["by_day"]:
+            return JsonResponse({"error": "No data available for bar chart"}, status=404)
+
+        # Отримуємо дані
+        chart_data = response_data["by_day"]
+
+        # Фільтрація за мінімальним доходом
+        filtered_data = [item for item in chart_data if float(item["total_income"]) >= min_income]
+        print(f"Filtered data: {filtered_data}")  # Логування для діагностики
+
+        if not filtered_data:
+            return JsonResponse({"error": "No data matches the filter."}, status=404)
+
+        # Підготовка списків для графіка
+        days = [item["day"] for item in filtered_data]
+        total_income = [float(item["total_income"]) for item in filtered_data]  # Конвертація Decimal у float
+
+        # Форматування дат у вигляді строк
+        formatted_days = [str(day) for day in days]
+
+        # Підготовка даних для Bokeh
+        source = ColumnDataSource(data=dict(
+            day=formatted_days,  # Перетворені строки дат
+            total_income=total_income
+        ))
+
+        # Створення графіка
+        p = figure(
+            x_range=source.data['day'],
+            height=500, width=800,
+            title="Filtered Daily Total Income" if min_income > 0 else "Daily Total Income",
+            toolbar_location=None,
+            tools="hover",
+            tooltips="@day: @total_income"
+        )
+
+        p.vbar(
+            x='day',
+            top='total_income',
+            width=0.8,
+            source=source
+        )
+
+        p.xaxis.axis_label = "Day"
+        p.yaxis.axis_label = "Total Income"
+        p.xaxis.major_label_orientation = 0.8
+        p.y_range.start = 0
+        p.xgrid.grid_line_color = None
+
+        # Серіалізація графіка
+        return JsonResponse(json_item(p), safe=False)
+
+    except Exception as e:
+        print(f"Error in bokeh_bar_chart_3: {e}")
+        return JsonResponse({"error": str(e)}, status=500)
+
+#suppliers_with_product_count
+def bokeh_line_chart_4(request):
+    try:
+        # Отримуємо параметри фільтрації з GET-запиту
+        min_supplied_products = int(request.GET.get('min_supplied_products', 0))
+
+        # Імітуємо об'єкт request із параметрами
+        mock_request = SimpleNamespace(query_params={"min_supplied_products": min_supplied_products})
+
+        # Викликаємо функцію з PharmacyApp напряму
+        supplier_view_set = SupplierViewSet()
+        response_data = supplier_view_set.suppliers_with_product_count(mock_request)
+
+        # Перевіряємо, чи є дані
+        if "chart_data" not in response_data or not response_data["chart_data"]:
+            return JsonResponse({"error": "No data available for line chart"}, status=404)
+
+        # Отримуємо та фільтруємо дані для лінійної діаграми
+        chart_data = response_data["chart_data"]
+        filtered_data = [item for item in chart_data if item["total_products"] >= min_supplied_products]
+        print(f"Filtered data: {filtered_data}")  # Логування для діагностики
+
+        if not filtered_data:
+            return JsonResponse({"error": "No data matches the filter."}, status=404)
+
+        # Підготовка списків для графіка
+        supplier_names = [item["name"] for item in filtered_data]
+        total_products = [item["total_products"] for item in filtered_data]
+
+        # Підготовка даних для Bokeh
+        source = ColumnDataSource(data=dict(
+            supplier_names=supplier_names,
+            total_products=total_products
+        ))
+
+        # Створення лінійного графіка
+        p = figure(
+            height=500, width=800,
+            title="Filtered Number of Products Supplied by Suppliers" if min_supplied_products > 0 else "Number of Products Supplied by Suppliers",
+            toolbar_location=None,
+            tools="hover",
+            tooltips="@supplier_names: @total_products Products"
+        )
+
+        # Додавання лінії на графік
+        p.line(
+            x=list(range(len(supplier_names))),
+            y=total_products,
+            line_width=2,
+            color="blue",
+            legend_label="Total Products"
+        )
+
+        # Додавання маркерів
+        p.scatter(
+            x=list(range(len(supplier_names))),
+            y=total_products,
+            size=8,
+            color="red",
+            legend_label="Total Products"
+        )
+
+        # Налаштування осей
+        p.xaxis.axis_label = "Supplier Name"
+        p.xaxis.ticker = list(range(len(supplier_names)))
+        p.xaxis.major_label_overrides = {i: name for i, name in enumerate(supplier_names)}
+        p.yaxis.axis_label = "Total Products"
+
+        p.xgrid.grid_line_color = None
+        p.legend.location = "top_left"
+
+        # Серіалізація графіка
+        return JsonResponse(json_item(p), safe=False)
+
+    except Exception as e:
+        print(f"Error in bokeh_line_chart_4: {e}")
+        return JsonResponse({"error": str(e)}, status=500)
+
+
+#suppliers_stats
+def bokeh_pie_chart_5(request):
+    try:
+        print("Fetching supplier stats data from repository...")
+
+        # Отримуємо параметр мінімальної кількості продуктів
+        min_products = int(request.GET.get('min_products', 0))
+        print(f"Minimum products filter: {min_products}")  # Логування для діагностики
+
+        # Імітуємо об'єкт request із параметрами
+        mock_request = SimpleNamespace(query_params={"min_products": min_products})
+        supplier_view_set = SupplierViewSet()
+        response_data = supplier_view_set.suppliers_stats(mock_request)
+
+        # Перевіряємо, чи є дані
+        if "chart_data" not in response_data or not response_data["chart_data"]:
+            print("No data available in response")
+            return JsonResponse({"error": "No data available for pie chart"}, status=404)
+
+        # Фільтрація даних за мінімальною кількістю продуктів
+        chart_data = response_data["chart_data"]
+        filtered_data = [item for item in chart_data if item["total_products"] >= min_products]
+        print(f"Filtered data: {filtered_data}")  # Логування для діагностики
+
+        if not filtered_data:
+            print("Filtered data is empty")
+            return JsonResponse({"error": "No data matches the filter."}, status=404)
+
+        # Підготовка даних для Bokeh
+        supplier_names = [item["name"] for item in filtered_data]
+        total_products = [item["total_products"] for item in filtered_data]
+        total_sum = sum(total_products)
+        angles = [prod / total_sum * 2 * pi for prod in total_products]
+
+        # Додавання кольорів
+        from bokeh.palettes import Category20c
+        max_colors = len(Category20c)
+        colors = Category20c[min(len(filtered_data), max_colors)]
+
+        source = ColumnDataSource(data=dict(
+            name=supplier_names,
+            total_products=total_products,
+            angle=angles,
+            color=colors[:len(filtered_data)]  # Гарантія, що розмір палітри відповідає кількості даних
+        ))
+
+        # Створення кругової діаграми
+        p = figure(
+            height=500, width=500,
+            title="Filtered Distribution of Total Products by Suppliers",
+            toolbar_location=None,
+            tools="hover",
+            tooltips="@name: @total_products"
+        )
+
+        p.wedge(
+            x=0, y=0,
+            radius=0.4,
+            start_angle=cumsum('angle', include_zero=True),
+            end_angle=cumsum('angle'),
+            line_color="white",
+            fill_color='color',
+            legend_field='name',
+            source=source
+        )
+
+        p.legend.orientation = "vertical"
+        p.legend.location = "top_right"
+        p.axis.axis_label = None
+        p.axis.visible = False
+        p.grid.grid_line_color = None
+
+        print("Serializing pie chart...")
+        return JsonResponse(json_item(p), safe=False)
+
+    except Exception as e:
+        print(f"Error in bokeh_pie_chart_5: {e}")
+        return JsonResponse({"error": str(e)}, status=500)
+
+#suppliers_grouped_stats
+def bokeh_area_chart_6(request):
+    try:
+        print("Fetching grouped supplier stats data from repository...")
+
+        # Отримуємо параметр мінімальної кількості продуктів
+        min_total_products = int(request.GET.get('min_total_products', 0))
+        print(f"Minimum total products filter: {min_total_products}")
+
+        # Імітуємо об'єкт request із параметрами
+        mock_request = SimpleNamespace(query_params={"min_total_products": min_total_products})
+        supplier_view_set = SupplierViewSet()
+        response_data = supplier_view_set.suppliers_stats(mock_request)
+
+        # Перевіряємо, чи є дані
+        if "chart_data" not in response_data or not response_data["chart_data"]:
+            print("No data available in response")
+            return JsonResponse({"error": "No data available for area chart"}, status=404)
+
+        # Фільтрація даних за мінімальною кількістю продуктів
+        chart_data = response_data["chart_data"]
+        filtered_data = [item for item in chart_data if item["total_products"] >= min_total_products]
+        print(f"Filtered data: {filtered_data}")
+
+        if not filtered_data:
+            print("Filtered data is empty")
+            return JsonResponse({"error": "No data matches the filter."}, status=404)
+
+        # Групування даних
+        grouped_data = {}
+        for item in filtered_data:
             total_products = item["total_products"]
-            if total_products not in product_group:
-                product_group[total_products] = {"total_suppliers": 0, "total_products": total_products}
-            product_group[total_products]["total_suppliers"] += 1
+            if total_products not in grouped_data:
+                grouped_data[total_products] = {"total_suppliers": 0, "total_products_sum": 0}
+            grouped_data[total_products]["total_suppliers"] += 1
+            grouped_data[total_products]["total_products_sum"] += total_products
 
-        # Перетворення у список
-        grouped_data = list(product_group.values())
-        grouped_data = sorted(grouped_data, key=lambda x: x["total_products"])
+        # Перетворення у список для сортування
+        grouped_list = [
+            {
+                "total_products": total_products,
+                "total_suppliers": group["total_suppliers"],
+                "average_products": group["total_products_sum"] / group["total_suppliers"],
+            }
+            for total_products, group in grouped_data.items()
+        ]
 
-        # Формування результату
-        return {
-            "by_total_products": grouped_data
-        }
+        # Сортування за кількістю постачальників
+        grouped_list = sorted(grouped_list, key=lambda x: x["total_suppliers"], reverse=True)
+        print(f"Grouped data: {grouped_list}")
+
+        # Підготовка даних для Bokeh
+        total_products = [item["total_products"] for item in grouped_list]
+        total_suppliers = [item["total_suppliers"] for item in grouped_list]
+
+        # Створення графіка області
+        print("Creating area chart...")
+        p = figure(
+            height=500, width=800,
+            title="Suppliers Distribution by Total Products",
+            toolbar_location=None,
+            tools="hover",
+            tooltips="@x: @y Suppliers"
+        )
+
+        # Додавання області
+        p.varea(
+            x=total_products,
+            y1=0,
+            y2=total_suppliers,
+            fill_color="blue",
+            fill_alpha=0.5,
+        )
+
+        # Додавання лінії
+        p.line(
+            x=total_products,
+            y=total_suppliers,
+            line_width=2,
+            color="blue",
+            legend_label="Total Suppliers"
+        )
+
+        # Налаштування осей
+        p.xaxis.axis_label = "Total Products"
+        p.yaxis.axis_label = "Total Suppliers"
+        p.xgrid.grid_line_color = None
+        p.legend.location = "top_left"
+
+        # Серіалізація графіка
+        print("Serializing chart...")
+        return JsonResponse(json_item(p), safe=False)
+
+    except Exception as e:
+        print(f"Error in bokeh_area_chart_6: {e}")
+        return JsonResponse({"error": str(e)}, status=500)
+
+#--------------------------------------------------------------------------------------------------------------------------------
