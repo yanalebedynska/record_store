@@ -3,7 +3,6 @@ from django.utils import timezone
 
 from pharmacyApp.views import ReceiptItemViewSet
 from pharmacyApp.views import SupplierViewSet
-from types import SimpleNamespace      #сімпл дімпл папит сквіш
 
 from django.shortcuts import redirect
 from .forms import ProductForm , CustomerForm
@@ -24,13 +23,14 @@ from decimal import Decimal
 from datetime import date
 from pharmacyApp.serializers import SupplierSerializer
 from pharmacyApp.models import Supplier
+from bokeh.palettes import Category20c
 
 def home(request):
     return render(request, 'PharmacyInterface/home.html')
 
 
 API_BASE_URL = "http://127.0.0.1:8000/api"
-API_AUTH = ('maria_brychko', 'maria08080907')  # Логін і пароль для Basic Authentication
+API_AUTH = ('yana_admin', 'yana2006')  # Логін і пароль для Basic Authentication
 
 
 def product_list(request):
@@ -476,12 +476,9 @@ def plotly_pie_chart_2(request):
         # Отримуємо параметри фільтрації з GET-запиту
         min_quantity = int(request.GET.get('min_quantity', 0))
 
-        # Імітуємо об'єкт request із параметрами
-        mock_request = SimpleNamespace(query_params={"min_quantity": min_quantity})
-
-        # Викликаємо функцію з PharmacyApp напряму
+        # Викликаємо функцію ReceiptItemViewSet напряму
         receipt_item_view_set = ReceiptItemViewSet()
-        response_data = receipt_item_view_set.receiptitems_stats(mock_request)
+        response_data = receipt_item_view_set.receiptitems_stats(request)
 
         # Перевіряємо, чи є ключ 'chart_data'
         if "chart_data" not in response_data or not response_data["chart_data"]:
@@ -492,7 +489,6 @@ def plotly_pie_chart_2(request):
         filtered_data = [
             item for item in chart_data if item["quantity"] >= min_quantity
         ]
-        print(f"Filtered data: {filtered_data}")  # Логування для діагностики
 
         if not filtered_data:
             return JsonResponse({"error": "No data matches the filter."}, status=404)
@@ -514,9 +510,8 @@ def plotly_pie_chart_2(request):
 
     except Exception as e:
         # Логування помилки
-        print(f"Error in plotly_pie_chart_2_with_filter: {e}")
+        print(f"Error in plotly_pie_chart_2: {e}")
         return JsonResponse({"error": str(e)}, status=500)
-
 
 
 #receiptitems_grouped_stats
@@ -525,12 +520,9 @@ def plotly_bar_chart_3(request):
         # Отримуємо параметри фільтрації з GET-запиту
         min_income = float(request.GET.get('min_income', 0))
 
-        # Імітуємо об'єкт request із параметрами
-        mock_request = SimpleNamespace(query_params={"min_income": min_income})
-
-        # Викликаємо функцію з PharmacyApp напряму
+        # Викликаємо функцію ReceiptItemViewSet напряму
         receipt_item_view_set = ReceiptItemViewSet()
-        response_data = receipt_item_view_set.receiptitems_grouped_stats(mock_request)
+        response_data = receipt_item_view_set.receiptitems_grouped_stats(request)
 
         # Перевіряємо, чи є дані
         if "by_day" not in response_data or not response_data["by_day"]:
@@ -571,9 +563,8 @@ def plotly_bar_chart_3(request):
         return JsonResponse(fig_json, safe=False)
 
     except Exception as e:
-        print(f"Error in plotly_bar_chart_3_no_pandas: {e}")
+        print(f"Error in plotly_bar_chart_3: {e}")
         return JsonResponse({"error": str(e)}, status=500)
-
 
 # suppliers_with_product_count
 def plotly_line_chart_4(request):
@@ -581,12 +572,9 @@ def plotly_line_chart_4(request):
         # Отримуємо параметри фільтрації з GET-запиту
         min_supplied_products = int(request.GET.get('min_supplied_products', 0))
 
-        # Імітуємо об'єкт request із параметрами
-        mock_request = SimpleNamespace(query_params={"min_supplied_products": min_supplied_products})
-
-        # Викликаємо функцію з PharmacyApp напряму
+        # Викликаємо функцію SupplierViewSet напряму
         supplier_view_set = SupplierViewSet()
-        response_data = supplier_view_set.suppliers_with_product_count(mock_request)
+        response_data = supplier_view_set.suppliers_with_product_count(request)
 
         # Перевіряємо, чи є дані
         if "chart_data" not in response_data or not response_data["chart_data"]:
@@ -630,19 +618,15 @@ def plotly_line_chart_4(request):
         print(f"Error in plotly_line_chart_4: {e}")
         return JsonResponse({"error": str(e)}, status=500)
 
-
 # suppliers_stats
 def plotly_pie_chart_5(request):
     try:
         # Отримуємо параметри фільтрації з GET-запиту
         min_products = int(request.GET.get('min_products', 0))
 
-        # Імітуємо об'єкт request із параметрами
-        mock_request = SimpleNamespace(query_params={"min_products": min_products})
-
-        # Викликаємо функцію з PharmacyApp напряму
+        # Викликаємо функцію SupplierViewSet напряму
         supplier_view_set = SupplierViewSet()
-        response_data = supplier_view_set.suppliers_stats(mock_request)
+        response_data = supplier_view_set.suppliers_stats(request)
 
         # Перевіряємо, чи є ключ 'chart_data'
         if "chart_data" not in response_data or not response_data["chart_data"]:
@@ -685,18 +669,14 @@ def plotly_pie_chart_5(request):
         print(f"Error in plotly_pie_chart_5: {e}")
         return JsonResponse({"error": str(e)}, status=500)
 
-
 def plotly_area_chart_6(request):
     try:
         # Отримуємо параметри фільтрації з GET-запиту
         min_total_products = int(request.GET.get('min_total_products', 0))
 
-        # Імітуємо об'єкт request із параметрами
-        mock_request = SimpleNamespace(query_params={"min_total_products": min_total_products})
-
-        # Викликаємо функцію з PharmacyApp напряму
+        # Викликаємо функцію SupplierViewSet напряму
         supplier_view_set = SupplierViewSet()
-        response_data = supplier_view_set.suppliers_grouped_stats(mock_request)
+        response_data = supplier_view_set.suppliers_grouped_stats(request)
 
         # Перевіряємо, чи є ключ 'by_total_products'
         if "by_total_products" not in response_data or not response_data["by_total_products"]:
@@ -822,10 +802,9 @@ def bokeh_pie_chart_2(request):
         min_quantity = int(request.GET.get('min_quantity', 1))
         print(f"Filtering with min_quantity: {min_quantity}")  # Діагностика
 
-        # Імітуємо запит із параметрами
-        mock_request = SimpleNamespace(query_params={"min_quantity": min_quantity})
+        # Виклик функції ReceiptItemViewSet напряму
         receipt_item_view_set = ReceiptItemViewSet()
-        response_data = receipt_item_view_set.receiptitems_stats(mock_request)
+        response_data = receipt_item_view_set.receiptitems_stats(request)
 
         # Перевіряємо наявність даних
         if "chart_data" not in response_data or not response_data["chart_data"]:
@@ -846,7 +825,6 @@ def bokeh_pie_chart_2(request):
         angles = [q / total_quantity * 2 * pi for q in quantities]
 
         # Додавання кольорів
-        from bokeh.palettes import Category20c
         colors = Category20c[len(receipt_items)]
 
         # Формування даних для Bokeh
@@ -885,18 +863,17 @@ def bokeh_pie_chart_2(request):
         print(f"Error in bokeh_pie_chart_2: {e}")
         return JsonResponse({"error": str(e)}, status=500)
 
-
 #receiptitems_grouped_stats
 def bokeh_bar_chart_3(request):
     try:
         # Отримуємо параметри фільтрації з GET-запиту
         min_income = float(request.GET.get('min_income', 0))
         category = request.GET.get('category', None)  # Фільтр за категорією, якщо задано
+        print(f"Filtering with min_income: {min_income}, category: {category}")  # Діагностика
 
-        # Імітуємо об'єкт request із параметрами
-        mock_request = SimpleNamespace(query_params={"min_income": min_income, "category": category})
+        # Виклик функції ReceiptItemViewSet напряму
         receipt_item_view_set = ReceiptItemViewSet()
-        response_data = receipt_item_view_set.receiptitems_grouped_stats(mock_request)
+        response_data = receipt_item_view_set.receiptitems_grouped_stats(request)
 
         # Перевіряємо, чи є дані
         if "by_day" not in response_data or not response_data["by_day"]:
@@ -960,13 +937,11 @@ def bokeh_line_chart_4(request):
     try:
         # Отримуємо параметри фільтрації з GET-запиту
         min_supplied_products = int(request.GET.get('min_supplied_products', 0))
+        print(f"Filtering with min_supplied_products: {min_supplied_products}")  # Діагностика
 
-        # Імітуємо об'єкт request із параметрами
-        mock_request = SimpleNamespace(query_params={"min_supplied_products": min_supplied_products})
-
-        # Викликаємо функцію з PharmacyApp напряму
+        # Виклик функції SupplierViewSet напряму
         supplier_view_set = SupplierViewSet()
-        response_data = supplier_view_set.suppliers_with_product_count(mock_request)
+        response_data = supplier_view_set.suppliers_with_product_count(request)
 
         # Перевіряємо, чи є дані
         if "chart_data" not in response_data or not response_data["chart_data"]:
@@ -1033,7 +1008,6 @@ def bokeh_line_chart_4(request):
         print(f"Error in bokeh_line_chart_4: {e}")
         return JsonResponse({"error": str(e)}, status=500)
 
-
 #suppliers_stats
 def bokeh_pie_chart_5(request):
     try:
@@ -1043,10 +1017,9 @@ def bokeh_pie_chart_5(request):
         min_products = int(request.GET.get('min_products', 0))
         print(f"Minimum products filter: {min_products}")  # Логування для діагностики
 
-        # Імітуємо об'єкт request із параметрами
-        mock_request = SimpleNamespace(query_params={"min_products": min_products})
+        # Виклик функції SupplierViewSet напряму
         supplier_view_set = SupplierViewSet()
-        response_data = supplier_view_set.suppliers_stats(mock_request)
+        response_data = supplier_view_set.suppliers_stats(request)
 
         # Перевіряємо, чи є дані
         if "chart_data" not in response_data or not response_data["chart_data"]:
@@ -1122,10 +1095,9 @@ def bokeh_area_chart_6(request):
         min_total_products = int(request.GET.get('min_total_products', 0))
         print(f"Minimum total products filter: {min_total_products}")
 
-        # Імітуємо об'єкт request із параметрами
-        mock_request = SimpleNamespace(query_params={"min_total_products": min_total_products})
+        # Виклик функції SupplierViewSet напряму
         supplier_view_set = SupplierViewSet()
-        response_data = supplier_view_set.suppliers_stats(mock_request)
+        response_data = supplier_view_set.suppliers_stats(request)
 
         # Перевіряємо, чи є дані
         if "chart_data" not in response_data or not response_data["chart_data"]:
@@ -1209,5 +1181,4 @@ def bokeh_area_chart_6(request):
     except Exception as e:
         print(f"Error in bokeh_area_chart_6: {e}")
         return JsonResponse({"error": str(e)}, status=500)
-
 #--------------------------------------------------------------------------------------------------------------------------------
