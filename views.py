@@ -170,27 +170,32 @@ class ReceiptItemViewSet(BaseViewSet):
         print("Orders Queryset:", queryset)
         return queryset
 
+
     @action(detail=False, methods=['get'], url_path='products-with-order-count')
     def products_with_order_count(self, request):
-        min_orders = int(request.query_params.get('min_orders', 1))
-        repository = ReceiptItemRepository()
-        products_with_orders = repository.get_products_with_order_count(min_orders=min_orders)
+        try:
+            min_orders = int(request.query_params.get('min_orders', 1))
+            repository = ReceiptItemRepository()
+            products_with_orders = repository.get_products_with_order_count(min_orders=min_orders)
 
-        return Response(products_with_orders)
+            if not products_with_orders:
+                return Response({"error": "No data found for the given filter."}, status=404)
 
+            return Response(products_with_orders, status=200)
+        except Exception as e:
+            print(f"Error in products_with_order_count: {e}")
+            return Response({"error": str(e)}, status=500)
+    #--
 
     @action(detail=False, methods=['get'], url_path='receiptitems-stats')
     def receiptitems_stats(self, request, *args, **kwargs):
-        """
-        Custom endpoint to retrieve statistical analysis for receipt items' data.
-        """
         queryset = self.get_repository().get_all()  # Отримуємо всі дані через репозиторій
         data = list(queryset.values('receipt_item_id', 'quantity', 'product__price'))  # Обираємо потрібні поля
 
         # Перевірка, чи є дані
         if not data:
             return Response({
-                "chart_data": [],  # Повертаємо порожній список, якщо даних немає
+                "chart_data": [],
                 "message": "No data available for statistical analysis."
             })
 
@@ -231,42 +236,48 @@ class ReceiptItemViewSet(BaseViewSet):
 
     @action(detail=False, methods=['get'], url_path='receiptitems-grouped-stats')
     def receiptitems_grouped_stats(self, request, *args, **kwargs):
-        """
-        Custom endpoint to group and aggregate receipt items data.
-        Aggregates data by product categories and days.
-        """
-        queryset = self.get_repository().get_all()
-        data = queryset.values('product__category', 'order_date', 'quantity', 'product__price')
-        df = pd.DataFrame(list(data))
+        try:
+            queryset = self.get_repository().get_all()
+            data = queryset.values('product__category', 'order_date', 'quantity', 'product__price')
+            df = pd.DataFrame(list(data))
 
-        # Перевірка, чи є дані
-        if df.empty:
+            # Перевірка, чи є дані
+            if df.empty:
+                return {
+                    "by_category": [],
+                    "by_day": [],
+                    "message": "No data available for grouped analysis."
+                }
+
+            # Перетворення `order_date` у формат дати
+            df['order_date'] = pd.to_datetime(df['order_date'], errors='coerce')
+            df = df.dropna(subset=['order_date'])  # Видаляємо рядки з некоректною датою
+
+            # Додавання нового стовпця з загальною вартістю
+            df['total_income'] = df['quantity'] * df['product__price']
+
+            # Групування по днях
+            day_group = df.groupby(df['order_date'].dt.strftime('%Y-%m-%d')).agg(
+                total_income=('total_income', 'sum'),
+                total_quantity=('quantity', 'sum')
+            ).reset_index()
+
+            # Перейменовуємо колонку групування на "day"
+            day_group.rename(columns={"order_date": "day"}, inplace=True)
+
+            # Формування результату
+            return {
+                "by_day": day_group.to_dict(orient='records')
+            }
+
+        except Exception as e:
+            print(f"Error in receiptitems_grouped_stats: {e}")
             return {
                 "by_category": [],
                 "by_day": [],
-                "message": "No data available for grouped analysis."
+                "error": str(e),
+                "message": "An error occurred during grouped analysis."
             }
-
-        # Перетворення `order_date` у формат дати
-        df['order_date'] = pd.to_datetime(df['order_date'], errors='coerce')
-        df = df.dropna(subset=['order_date'])  # Видаляємо рядки з некоректною датою
-
-        # Додавання нового стовпця з загальною вартістю
-        df['total_income'] = df['quantity'] * df['product__price']
-
-        # Групування по днях
-        day_group = df.groupby(df['order_date'].dt.strftime('%Y-%m-%d')).agg(
-            total_income=('total_income', 'sum'),
-            total_quantity=('quantity', 'sum')
-        ).reset_index()
-
-        # Перейменовуємо колонку групування на "day"
-        day_group.rename(columns={"order_date": "day"}, inplace=True)
-
-        # Формування результату
-        return {
-            "by_day": day_group.to_dict(orient='records')
-        }
 
 
 class SupplierViewSet(BaseViewSet):
@@ -277,100 +288,121 @@ class SupplierViewSet(BaseViewSet):
 
     @action(detail=False, methods=['get'], url_path='suppliers-with-product-count')
     def suppliers_with_product_count(self, request, *args, **kwargs):
-        # Отримуємо дані через репозиторій
-        queryset = self.get_repository().get_suppliers_with_product_count()
+        try:
+            # Отримуємо дані через репозиторій
+            queryset = self.get_repository().get_suppliers_with_product_count()
 
-        # Приведення queryset до списку словників
-        data = list(queryset.values('name', 'total_products'))
+            # Приведення queryset до списку словників
+            data = list(queryset.values('name', 'total_products'))
 
-        # Перевірка, чи є дані
-        if not data:
+            # Перевірка, чи є дані
+            if not data:
+                return {
+                    "chart_data": []
+                }
+
+            # Повертаємо дані
             return {
-                "chart_data": []
+                "chart_data": data  # Дані у вигляді списку словників
             }
 
-        # Повертаємо дані
-        return {
-            "chart_data": data  # Дані у вигляді списку словників
-        }
+        except Exception as e:
+            print(f"Error in suppliers_with_product_count: {e}")
+            return {
+                "chart_data": [],
+                "error": str(e),
+                "message": "An error occurred during data retrieval."
+            }
+
 
     @action(detail=False, methods=['get'], url_path='suppliers-stats')
     def suppliers_stats(self, request, *args, **kwargs):
-        """
-        Custom endpoint to retrieve statistical analysis for suppliers' data.
-        """
-        queryset = self.get_repository().get_suppliers_with_product_count()
-        data = list(queryset.values('supplier_id', 'name', 'total_products'))
+        try:
+            queryset = self.get_repository().get_suppliers_with_product_count()
+            data = list(queryset.values('supplier_id', 'name', 'total_products'))
 
-        # Перевірка, чи є дані
-        if not data:
+            # Перевірка, чи є дані
+            if not data:
+                return {
+                    "chart_data": [],
+                    "message": "No data available for statistical analysis."
+                }
+
+            # Перетворення в pandas DataFrame
+            df = pd.DataFrame(data)
+
+            # Перевірка колонок
+            if 'total_products' not in df.columns:
+                return {
+                    "chart_data": [],
+                    "message": "Required columns are missing."
+                }
+
+            # Групування для графіка
+            df_grouped = df.groupby(['supplier_id', 'name'], as_index=False).sum()
+
+            # Обчислення статистики
+            stats = {
+                "total_products": {
+                    "mean": df['total_products'].mean(),
+                    "median": df['total_products'].median(),
+                    "min": df['total_products'].min(),
+                    "max": df['total_products'].max()
+                }
+            }
+
+            # Формування даних для відповіді
+            return {
+                "chart_data": df_grouped.to_dict(orient='records'),
+                "stats": stats
+            }
+
+        except Exception as e:
+            print(f"Error in suppliers_stats: {e}")
             return {
                 "chart_data": [],
-                "message": "No data available for statistical analysis."
+                "stats": {},
+                "error": str(e),
+                "message": "An error occurred during statistical analysis."
             }
-
-        # Перетворення в pandas DataFrame
-        df = pd.DataFrame(data)
-
-        # Перевірка колонок
-        if 'total_products' not in df.columns:
-            return {
-                "chart_data": [],
-                "message": "Required columns are missing."
-            }
-
-        # Групування для графіка
-        df_grouped = df.groupby('supplier_id', as_index=False).sum()
-
-        # Обчислення статистики
-        stats = {
-            "total_products": {
-                "mean": df['total_products'].mean(),
-                "median": df['total_products'].median(),
-                "min": df['total_products'].min(),
-                "max": df['total_products'].max()
-            }
-        }
-
-        # Формування даних для відповіді
-        return {
-            "chart_data": df_grouped.to_dict(orient='records'),
-            "stats": stats
-        }
 
     @action(detail=False, methods=['get'], url_path='suppliers-grouped-stats')
     def suppliers_grouped_stats(self, request, *args, **kwargs):
-        """
-        Custom endpoint to group and aggregate suppliers' data.
-        Aggregates data by total products.
-        """
-        queryset = self.get_repository().get_suppliers_with_product_count()
-        data = list(queryset.values('supplier_id', 'name', 'total_products'))
+        try:
+            queryset = self.get_repository().get_suppliers_with_product_count()
+            data = list(queryset.values('supplier_id', 'name', 'total_products'))
 
-        # Перевірка, чи є дані
-        if not data:
+            # Перевірка, чи є дані
+            if not data:
+                return {
+                    "by_total_products": [],
+                    "message": "No data available for grouped analysis."
+                }
+
+            # Групування по кількості продуктів
+            product_group = {}
+            for item in data:
+                total_products = item["total_products"]
+                if total_products not in product_group:
+                    product_group[total_products] = {"total_suppliers": 0, "total_products": total_products}
+                product_group[total_products]["total_suppliers"] += 1
+
+            # Перетворення у список
+            grouped_data = list(product_group.values())
+            grouped_data = sorted(grouped_data, key=lambda x: x["total_products"])
+
+            # Формування результату
             return {
-                "by_total_products": [],
-                "message": "No data available for grouped analysis."
+                "by_total_products": grouped_data
             }
 
-        # Групування по кількості продуктів
-        product_group = {}
-        for item in data:
-            total_products = item["total_products"]
-            if total_products not in product_group:
-                product_group[total_products] = {"total_suppliers": 0, "total_products": total_products}
-            product_group[total_products]["total_suppliers"] += 1
-
-        # Перетворення у список
-        grouped_data = list(product_group.values())
-        grouped_data = sorted(grouped_data, key=lambda x: x["total_products"])
-
-        # Формування результату
-        return {
-            "by_total_products": grouped_data
-        }
-
+        except Exception as e:
+            print(f"Error in suppliers_grouped_stats: {e}")
+            return {
+                "by_total_products": [],
+                "error": str(e),
+                "message": "An error occurred during grouped analysis."
+            }
 
 class ProductsWithOrdersView(BaseViewSet):
     permission_classes = [IsAuthenticated]
