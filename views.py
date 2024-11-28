@@ -1,9 +1,10 @@
 from django.db.models import Count
-from rest_framework import viewsets, \
-    status  # Містить класи для створення наборів виглядів, які поєднують логіку перегляду та запитів.
-#для спрощення процесу створення API, забезпечуючи готові методи для обробки запитів CRUD
+from django.http import JsonResponse
+from django.shortcuts import render
+from rest_framework import viewsets
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.authentication import BasicAuthentication
+from rest_framework.utils import json
 
 from .models import ReceiptItem, Product, Supplier
 from .serializers import (
@@ -31,6 +32,10 @@ from rest_framework.response import Response
 
 from .serializers.product_with_orders_serializer import ProductWithOrdersSerializer
 
+import plotly.graph_objs as go
+from urllib.parse import unquote
+
+import json
 
 class BaseViewSet(viewsets.ModelViewSet):
     authentication_classes = [BasicAuthentication]
@@ -436,3 +441,48 @@ class PopularSupplierView(BaseViewSet):
             'popular_supplier': SupplierSerializer(popular_supplier).data if popular_supplier else None,
             'suppliers': SupplierSerializer(suppliers, many=True).data
         })
+
+
+
+
+#----------------------------------------------------------------------------------------------------------
+import time
+from concurrent.futures import ThreadPoolExecutor, ProcessPoolExecutor
+
+def measure_performance(fetch_function, product_ids, num_requests_list, max_workers=5, method='threads'):
+    performance_data = []
+
+    for num_requests in num_requests_list:
+        test_ids = product_ids[:num_requests]  # Беремо потрібну кількість запитів
+        start_time = time.time()
+
+        if method == 'threads':
+            with ThreadPoolExecutor(max_workers=max_workers) as executor:
+                results = list(executor.map(fetch_function, test_ids))
+        elif method == 'processes':
+            with ProcessPoolExecutor(max_workers=max_workers) as executor:
+                results = list(executor.map(fetch_function, test_ids))
+        else:
+            raise ValueError("Invalid method. Use 'threads' or 'processes'.")
+
+        elapsed_time = time.time() - start_time
+        performance_data.append({
+            "num_requests": num_requests,
+            "time": elapsed_time,
+            "workers": max_workers,
+            "method": method
+        })
+
+    return performance_data
+
+#-----------------------------------------------------------------------------------------------------
+from django.http import JsonResponse
+from .performance_tester import test_performance
+
+def test_performance_view(request):
+    try:
+        results = test_performance()
+        return JsonResponse({"results": results}, safe=False)
+    except Exception as e:
+        return JsonResponse({"error": str(e)}, status=500)
+
