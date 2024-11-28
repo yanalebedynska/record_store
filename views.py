@@ -10,6 +10,7 @@ from django.http import JsonResponse
 from django.contrib import messages
 
 from math import pi
+import json
 
 import plotly.express as px
 import plotly.io as pio
@@ -1181,4 +1182,14 @@ def bokeh_area_chart_6(request):
     except Exception as e:
         print(f"Error in bokeh_area_chart_6: {e}")
         return JsonResponse({"error": str(e)}, status=500)
-#--------------------------------------------------------------------------------------------------------------------------------
+
+#--------------------------------------------------------------------------------------------------------------
+from django.shortcuts import render
+from pharmacyApp.performance_tester import test_performance
+
+def performance_dashboard(request):
+    try:
+        charts = test_performance()
+        return render(request, "pharmacyInterface/performance_dashboard.html", {"charts": charts})
+    except Exception as e:
+        return render(request, "pharmacyInterface/error.html", {"message": str(e)})
