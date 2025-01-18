@@ -1,0 +1,229 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  {% load static %}
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Dashboard</title>
+
+  <!-- Підключення Plotly через CDN -->
+  <script src="https://cdn.plot.ly/plotly-2.20.0.min.js"></script>
+
+  <style>
+    html, body {
+        margin: 0;
+        padding: 0;
+        min-height: 100%;
+        font-family: 'Poppins', sans-serif;
+        background-color: #fdf9ff;
+        color: #555;
+    }
+    .container {
+        padding: 20px;
+        max-width: 1200px;
+        margin: 20px auto;
+        background-color: #ffffff;
+        border-radius: 15px;
+        box-shadow: 0 8px 15px rgba(0, 0, 0, 0.15);
+        display: flex;
+        flex-direction: column;
+        gap: 20px;
+    }
+    h1 {
+        text-align: center;
+        font-size: 40px;
+        color: #80d6f3;
+        font-weight: bold;
+    }
+    .filter-container {
+        display: flex;
+        gap: 10px;
+        margin-bottom: 10px;
+        padding: 10px;
+        background-color: #e0f7fa;
+        border-radius: 15px;
+        box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+    }
+    .filter-container label {
+        font-size: 14px;
+        font-weight: 500;
+    }
+    .filter-container input {
+        font-size: 14px;
+        padding: 5px;
+        border: 1px solid #ccc;
+        border-radius: 5px;
+    }
+    .filter-container button {
+        background-color: #54d3fb;
+        color: #fff;
+        border: none;
+        padding: 8px 12px;
+        border-radius: 5px;
+        cursor: pointer;
+    }
+    .chart-container {
+        background-color: #fce4ec;
+        border-radius: 15px;
+        box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        padding: 15px;
+    }
+    .chart-title {
+        text-align: center;
+        font-size: 18px;
+        font-weight: bold;
+        margin-bottom: 10px;
+    }
+    .footer {
+        text-align: center;
+        margin-top: 20px;
+        font-size: 14px;
+        color: #888;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+      <h1>Dashboard</h1>
+
+      <!-- Графік 1 -->
+      <div class="filter-container">
+          <label for="min-orders">Minimum Orders:</label>
+          <input type="number" id="min-orders" value="1" min="0">
+          <button id="apply-bar-filter">Apply</button>
+      </div>
+      <div class="chart-container">
+          <div class="chart-title">Bar Chart: Order Count by Product</div>
+          <div id="plotly-bar"></div>
+      </div>
+
+      <!-- Графік 2 -->
+      <div class="filter-container">
+          <label for="min-quantity">Minimum Quantity:</label>
+          <input type="number" id="min-quantity" value="1" min="0">
+          <button id="apply-pie-filter">Apply</button>
+      </div>
+      <div class="chart-container">
+          <div class="chart-title">Pie Chart: Quantity Distribution</div>
+          <div id="plotly-pie"></div>
+      </div>
+
+      <!-- Графік 3 -->
+      <div class="filter-container">
+          <label for="min-income">Minimum Income:</label>
+          <input type="number" id="min-income" value="0" min="0">
+          <button id="apply-bar-2-filter">Apply</button>
+      </div>
+      <div class="chart-container">
+          <div class="chart-title">Bar Chart: Daily Total Income</div>
+          <div id="plotly-bar-2"></div>
+      </div>
+
+      <!-- Графік 4 -->
+      <div class="filter-container">
+          <label for="min-supplied">Minimum Supplied Products:</label>
+          <input type="number" id="min-supplied" value="0" min="0">
+          <button id="apply-line-filter">Apply</button>
+      </div>
+      <div class="chart-container">
+          <div class="chart-title">Line Chart: Products Supplied by Suppliers</div>
+          <div id="plotly-line"></div>
+      </div>
+
+      <!-- Графік 5 -->
+      <div class="filter-container">
+          <label for="min-products">Minimum Products:</label>
+          <input type="number" id="min-products" value="0" min="0">
+          <button id="apply-pie-2-filter">Apply</button>
+      </div>
+      <div class="chart-container">
+          <div class="chart-title">Pie Chart: Distribution of Total Products by Suppliers</div>
+          <div id="plotly-pie-2"></div>
+      </div>
+
+      <!-- Графік 6 -->
+      <div class="filter-container">
+          <label for="min-total">Minimum Total Products:</label>
+          <input type="number" id="min-total" value="0" min="0">
+          <button id="apply-area-filter">Apply</button>
+      </div>
+      <div class="chart-container">
+          <div class="chart-title">Area Chart: Suppliers Count by Total Products</div>
+          <div id="plotly-area"></div>
+      </div>
+  </div>
+
+  <div class="footer">
+      &copy; 2024 Dashboard. All Rights Reserved.
+  </div>
+
+<script>
+    const loadChart = (url, containerId, title) => {
+        fetch(url)
+            .then(response => {
+                if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+                return response.json();
+            })
+            .then(data => {
+                const parsedData = JSON.parse(data);
+                parsedData.layout = parsedData.layout || {};
+                parsedData.layout.title = { text: title, font: { size: 18 }, x: 0.5 };
+                parsedData.layout.height = 500;
+                parsedData.layout.margin = { t: 40, b: 40, l: 50, r: 50 };
+                Plotly.newPlot(containerId, parsedData.data, parsedData.layout);
+            })
+            .catch(error => {
+                console.error(`Error loading chart (${containerId}):`, error);
+                document.getElementById(containerId).innerHTML = `<p style="color:red;">Error loading chart: ${error.message}</p>`;
+            });
+    };
+
+    // Завантаження графіка 1
+    document.getElementById('apply-bar-filter').addEventListener('click', () => {
+        const minOrders = document.getElementById('min-orders').value;
+        loadChart(`{% url 'PharmacyInterface:plotly_bar_chart_1' %}?min_orders=${minOrders}`, "plotly-bar", "Order Count by Product");
+    });
+
+    // Завантаження графіка 2
+    document.getElementById('apply-pie-filter').addEventListener('click', () => {
+        const minQuantity = document.getElementById('min-quantity').value;
+        loadChart(`{% url 'PharmacyInterface:plotly_pie_chart_2' %}?min_quantity=${minQuantity}`, "plotly-pie", "Quantity Distribution");
+    });
+
+    // Завантаження графіка 3
+    document.getElementById('apply-bar-2-filter').addEventListener('click', () => {
+        const minIncome = document.getElementById('min-income').value;
+        loadChart(`{% url 'PharmacyInterface:plotly_bar_chart_3' %}?min_income=${minIncome}`, "plotly-bar-2", "Daily Total Income");
+    });
+
+    // Завантаження графіка 4
+    document.getElementById('apply-line-filter').addEventListener('click', () => {
+        const minSupplied = document.getElementById('min-supplied').value;
+        loadChart(`{% url 'PharmacyInterface:plotly_line_chart_4' %}?min_supplied=${minSupplied}`, "plotly-line", "Products Supplied by Suppliers");
+    });
+
+    // Завантаження графіка 5
+    document.getElementById('apply-pie-2-filter').addEventListener('click', () => {
+        const minProducts = document.getElementById('min-products').value;
+        loadChart(`{% url 'PharmacyInterface:plotly_pie_chart_5' %}?min_products=${minProducts}`, "plotly-pie-2", "Distribution of Total Products by Suppliers");
+    });
+
+    // Завантаження графіка 6
+    document.getElementById('apply-area-filter').addEventListener('click', () => {
+        const minTotal = document.getElementById('min-total').value;
+        loadChart(`{% url 'PharmacyInterface:plotly_area_chart_6' %}?min_total=${minTotal}`, "plotly-area", "Suppliers Count by Total Products");
+    });
+
+    // Початкове завантаження всіх графіків
+    window.onload = () => {
+        loadChart(`{% url 'PharmacyInterface:plotly_bar_chart_1' %}?min_orders=1`, "plotly-bar", "Order Count by Product");
+        loadChart(`{% url 'PharmacyInterface:plotly_pie_chart_2' %}?min_quantity=1`, "plotly-pie", "Quantity Distribution");
+        loadChart(`{% url 'PharmacyInterface:plotly_bar_chart_3' %}?min_income=0`, "plotly-bar-2", "Daily Total Income");
+        loadChart(`{% url 'PharmacyInterface:plotly_line_chart_4' %}?min_supplied=0`, "plotly-line", "Products Supplied by Suppliers");
+        loadChart(`{% url 'PharmacyInterface:plotly_pie_chart_5' %}?min_products=0`, "plotly-pie-2", "Distribution of Total Products by Suppliers");
+        loadChart(`{% url 'PharmacyInterface:plotly_area_chart_6' %}?min_total=0`, "plotly-area", "Suppliers Count by Total Products");
+    };
+</script>
+
+</body>
+</html>

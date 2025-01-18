@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Performance Dashboard</title>
+    <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
+    <style>
+        /* Загальні стилі сторінки */
+        body {
+            font-family: 'Arial', sans-serif;
+            background: linear-gradient(to bottom right, #fce4ec, #f8bbd0);
+            color: #4a4a4a;
+            margin: 0;
+            padding: 0;
+        }
+
+        /* Заголовок */
+        h1 {
+            color: #880e4f;
+            font-family: 'Georgia', serif;
+            font-size: 3rem;
+            text-shadow: 2px 2px #f48fb1;
+            text-align: center;
+            margin: 20px 0;
+        }
+
+        /* Оформлення блоків із графіками */
+        div.chart-container {
+            background: white;
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+            border-radius: 10px;
+            padding: 20px;
+            margin: 20px auto;
+            width: 100%; /* Контейнери тепер на всю ширину */
+            max-width: 100%; /* Гарантія, що не буде обмеження */
+        }
+
+        h2 {
+            color: #ad1457;
+            font-size: 1.5rem;
+            margin-bottom: 20px;
+            text-align: center;
+        }
+
+        /* Графіки */
+        div[id^="chart-"] {
+            height: 500px; /* Висота графіка */
+            width: 100%;   /* Графік на всю ширину контейнера */
+        }
+    </style>
+</head>
+<body>
+    <h1>Performance Dashboard</h1>
+    <div>
+        {% for chart in charts %}
+        <div class="chart-container">
+            <h2>Batch Size: {{ chart.batch_size }}, Method: {{ chart.method }}</h2>
+            <div id="chart-{{ forloop.counter }}"></div>
+            <script>
+                var chartData = JSON.parse('{{ chart.chart|escapejs }}');
+                // Видаляємо заголовок графіка
+                chartData.layout.title = undefined;
+                Plotly.newPlot('chart-{{ forloop.counter }}', chartData.data, chartData.layout, {responsive: true});
+            </script>
+        </div>
+        {% endfor %}
+    </div>
+</body>
+</html>
